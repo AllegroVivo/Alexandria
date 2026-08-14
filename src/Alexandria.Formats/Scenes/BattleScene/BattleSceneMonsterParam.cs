@@ -32,7 +32,7 @@ public sealed record BattleSceneMonsterParam(
     Byte MEvade,
     Byte BlueMagic,
     IReadOnlyList<Byte> Bones,
-    UInt16 DieSFX,
+    UInt16 DieSfx,
     Byte Konran,
     Byte MesCount,
     IReadOnlyList<Byte> IconBones,
