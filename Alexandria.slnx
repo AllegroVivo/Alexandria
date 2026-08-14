@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Alexandria.Formats/Alexandria.Formats.csproj" />
+    <Project Path="src/ff9tool/ff9tool.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Alexandria.Formats.Tests/Alexandria.Formats.Tests.csproj" />
+  </Folder>
+</Solution>
