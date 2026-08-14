@@ -1,0 +1,15 @@
+# Build output
+bin/
+obj/
+
+# IDE state
+.idea/
+.vs/
+*.user
+
+# Test results
+TestResults/
+
+# Bright line: extracted game data never enters the repo
+FF9Data/
+*.raw16
