@@ -4,7 +4,7 @@ public static class CharacterAbilities
 {
     public static IReadOnlyList<LearnableAbility> Load(String path) =>
     [
-        .. MemoriaCsv.ReadRows(path)
+        .. MemoriaCSV.ReadRows(path)
             .Select(f => new LearnableAbility(
                 AbilityRef.Parse(f[0]),
                 Int32.Parse(f[1])))

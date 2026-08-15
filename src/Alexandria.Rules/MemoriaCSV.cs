@@ -5,7 +5,7 @@ namespace Alexandria.Rules;
 /// '#' begins a comment (whole line or trailing field), blank lines ignored.
 /// </summary>
 /// Limitation: '#!' metadata directives (version + optional-column flags) are skipped, not honored.
-public static class MemoriaCsv
+public static class MemoriaCSV
 {
     public static IEnumerable<String[]> ReadRows(String path)
     {

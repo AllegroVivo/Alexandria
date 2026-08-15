@@ -14,7 +14,7 @@ public class LevelingTable
 
     public static LevelingTable Load(String path)
     {
-        var levels = MemoriaCsv.ReadRows(path)
+        var levels = MemoriaCSV.ReadRows(path)
             .Select(f => new LevelBonus(
                 UInt32.Parse(f[0]),
                 UInt16.Parse(f[1]),

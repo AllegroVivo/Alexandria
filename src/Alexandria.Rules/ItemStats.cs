@@ -16,7 +16,7 @@ public sealed record ItemStats(
     public String DisplayName => Name[(Name.IndexOf('#') + 1)..].Trim();
 
     public static IReadOnlyDictionary<Int32, ItemStats> Load(String path)
-        => MemoriaCsv.ReadRows(path)
+        => MemoriaCSV.ReadRows(path)
             .Select(f => new ItemStats(
                 f[0],
                 Int32.Parse(f[1]),

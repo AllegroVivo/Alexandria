@@ -10,13 +10,13 @@ public sealed record SynthesisRecipe(
 {
     public static IReadOnlyList<SynthesisRecipe> Load(String path) =>
     [
-        .. MemoriaCsv.ReadRows(path)
+        .. MemoriaCSV.ReadRows(path)
             .Select(f => new SynthesisRecipe(
                 f[0],
                 Int32.Parse(f[1]),
-                MemoriaCsv.ParseIntArray(f[2]),
+                MemoriaCSV.ParseIntArray(f[2]),
                 UInt32.Parse(f[3]),
                 Int32.Parse(f[4]),
-                MemoriaCsv.ParseIntArray(f[5])))
+                MemoriaCSV.ParseIntArray(f[5])))
     ];
 }

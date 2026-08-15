@@ -57,4 +57,19 @@ public class BattleSceneGoldenTests
         if (!File.Exists(enemiesPath))
             return;
     }
+    
+    [Fact]
+    public void Type_C_Strike_has_its_real_numbers()
+    {
+        var dir = Path.Combine(DataRoot, "EVT_BATTLE_AC_E028F");
+        using var reader = new BinaryReader(File.OpenRead(Path.Combine(dir, "dbfile0000.raw16")));
+        var scene = BattleScene.Read(reader);
+
+        var strike = scene.Attacks[0];
+        Assert.Equal(8, strike.ScriptID);     // enemy physical
+        Assert.Equal(22, strike.Power);
+        Assert.Equal(100, strike.Rate);
+        Assert.Equal(44, strike.Category);
+        Assert.Equal(0, strike.MP);
+    }
 }

@@ -10,7 +10,7 @@ public sealed record CharacterBaseStats(
     UInt32 Gems)
 {
     public static IReadOnlyList<CharacterBaseStats> Load(String path)
-        => MemoriaCsv.ReadRows(path)
+        => MemoriaCSV.ReadRows(path)
             .Select(f => new CharacterBaseStats(
                 f[0],
                 Int32.Parse(f[1]),

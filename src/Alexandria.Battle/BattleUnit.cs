@@ -20,6 +20,7 @@ public sealed class BattleUnit
     public required Int32 MagicalDefense { get; init; }
     public required Int32 MagicalEvade { get; init; }
     public Int32 ATBGauge { get; set; }
+    public BattleStatus Statuses { get; set; }
     
     /// <summary>Basic attack power: weapon power for players, attack data for enemies. Placeholder default.</summary>
     public Int32 AttackPower { get; set; } = 10;
@@ -48,5 +49,7 @@ public sealed class BattleUnit
         MagicalDefense = m.MDefense,
         MagicalEvade = m.MEvade
     };
+
+    public Boolean Has(BattleStatus status) => (Statuses & status) != 0;
 }
 

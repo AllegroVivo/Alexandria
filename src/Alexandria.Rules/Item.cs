@@ -8,7 +8,7 @@ public sealed record Item(
     Int32 BonusID)
 {
     public static IReadOnlyDictionary<Int32, Item> Load(String path)
-        => MemoriaCsv.ReadRows(path)
+        => MemoriaCSV.ReadRows(path)
             .Select(f => new Item(
                 Int32.Parse(f[0]),
                 Int32.Parse(f[1]),

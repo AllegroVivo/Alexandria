@@ -65,7 +65,8 @@ public sealed record EnemyDto(
     Byte Mdp,
     Byte Mav,
     Int32 Card,
-    Int32 DieSfx)
+    Int32 DieSfx,
+    Int32 DefaultAttack)
 {
     /// <summary>Name with the leading [STRT=w,h] tag stripped.</summary>
     public String DisplayName => Name[(Name.IndexOf(']') + 1)..];

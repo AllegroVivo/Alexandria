@@ -26,7 +26,7 @@ public class PhysicalAttackTests
         // crit rolls 0, 50 → q=23>>2=5, 0%5=0 not > 50 → no crit
         // damage = 23 × max(12−10, 1) = 46      (attackPower 12, Type C PDef 10)
         var result = PhysicalAttack.Execute(Zidaneish(), TypeC(), attackPower: 12,
-            new RiggedDice(50, 2, 0, 50));
+            new RiggedDice(0, 50, 2, 0, 50));
 
         Assert.Equal(AttackOutcome.Hit, result.Outcome);
         Assert.Equal(46, result.Damage);
@@ -36,7 +36,7 @@ public class PhysicalAttackTests
     public void A_critical_doubles_the_attack_side()
     {
         // same as above but crit rolls 4, 3 → 4%5=4 > 3 → crit: attack 46 → damage 92
-        var result = PhysicalAttack.Execute(Zidaneish(), TypeC(), 12, new RiggedDice(50, 2, 4, 3));
+        var result = PhysicalAttack.Execute(Zidaneish(), TypeC(), 12, new RiggedDice(0, 50, 2, 4, 3));
 
         Assert.Equal(AttackOutcome.CriticalHit, result.Outcome);
         Assert.Equal(92, result.Damage);
@@ -46,7 +46,7 @@ public class PhysicalAttackTests
     public void Evade_beats_the_roll()
     {
         // evade roll 1 → 1%100=1, PEvade 3 > 1 → evaded, no damage
-        var result = PhysicalAttack.Execute(Zidaneish(), TypeC(), 12, new RiggedDice(1));
+        var result = PhysicalAttack.Execute(Zidaneish(), TypeC(), 12, new RiggedDice(0, 1));
 
         Assert.Equal(AttackOutcome.Evaded, result.Outcome);
         Assert.Equal(0, result.Damage);
@@ -57,7 +57,7 @@ public class PhysicalAttackTests
     {
         var target = TypeC();
         var result = PhysicalAttack.Execute(Zidaneish(), target, attackPower: 9999,
-            new RiggedDice(50, 2, 0, 50));
+            new RiggedDice(0, 50, 2, 0, 50));
         Assert.Equal(9999, result.Damage);
 
         PhysicalAttack.Apply(target, result.Damage);

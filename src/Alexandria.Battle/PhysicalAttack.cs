@@ -2,6 +2,7 @@ namespace Alexandria.Battle;
 
 public enum AttackOutcome
 {
+    Miss,
     Evaded,
     Hit,
     CriticalHit
@@ -20,6 +21,15 @@ public static class PhysicalAttack
         BattleUnit attacker, BattleUnit target, Int32 attackPower,
         Random rng, Boolean enemyStyle = false, Int32 damageModifiers = 0)
     {
+        // hit roll first (TryPhysicalHit): Blind/Confuse caster and Defend target halve it
+        var hitRate = 100;
+        if (attacker.Has(BattleStatus.Blind | BattleStatus.Confuse))
+            hitRate /= 2;
+        if (target.Has(BattleStatus.Defend))
+            hitRate /= 2;
+        if (hitRate <= rng.Next(0, UInt16.MaxValue) % 100)
+            return new AttackResult(AttackOutcome.Miss, 0);
+        
         // evade roll: evaded when target.PhysicalEvade > rand16 % 100
         if (target.PhysicalEvade > rng.Next(0, UInt16.MaxValue) % 100)
             return new AttackResult(AttackOutcome.Evaded, 0);
@@ -37,10 +47,17 @@ public static class PhysicalAttack
             attack *= 2;
             crit = true;
         }
+
+        // status modifiers (BattleTarget.cs): Defend/Protect −1, Sleep/Mini +1
+        var modifiers = damageModifiers;
+        if (target.Has(BattleStatus.Defend | BattleStatus.Protect))
+            modifiers -= 1;
+        if (target.Has(BattleStatus.Sleep | BattleStatus.Mini))
+            modifiers += 1;
         
         // situational modifiers: each +1 → ×1.5 (integer), each −1 → ×0.5 (statuses feed this later)
-        for (var i = 0; i < Math.Abs(damageModifiers); i++)
-            attack = damageModifiers > 0 ? attack * 3 >> 1 : attack >> 1;
+        for (var i = 0; i < Math.Abs(modifiers); i++)
+            attack = modifiers > 0 ? attack * 3 >> 1 : attack >> 1;
         
         // damage = EnsureAttack × EnsurePowerDifference, capped at 9999
         var damage = Math.Max(attack, 1) * Math.Max(attackPower - target.PhysicalDefense, 1);

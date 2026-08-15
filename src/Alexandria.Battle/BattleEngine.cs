@@ -35,7 +35,8 @@ public sealed class BattleEngine
     {
         while (!IsOver)
         {
-            var ready = AllUnits.FirstOrDefault(u => u is { IsAlive: true, ATBReady: true });
+            var ready = AllUnits.FirstOrDefault(u => u is { IsAlive: true, ATBReady: true }
+                                                     && !u.Has(BattleStatus.PreventATBConfirm | BattleStatus.Stop | BattleStatus.Petrify));
             if (ready is not null)
                 return ready;
 
@@ -53,8 +54,20 @@ public sealed class BattleEngine
         var result = PhysicalAttack.Execute(
             attacker, target, attacker.AttackPower, _rng, enemyStyle: IsEnemy(attacker));
         PhysicalAttack.Apply(target, result.Damage);
+        if (result.Damage > 0 && target.Has(BattleStatus.Sleep))
+            target.Statuses &= ~BattleStatus.Sleep;
         ATBClock.ResetAfterAction(attacker);
         return new BattleEvent(attacker, target, result);
+    }
+
+    /// <summary>Cast + MP spend + damage + gauge reset: one resolved magic turn.</summary>
+    public BattleEvent ExecuteSpell(BattleUnit caster, BattleUnit target, Int32 spellPower, Int32 mpCost)
+    {
+        caster.CurrentMP -= mpCost;
+        var result = MagicAttack.Execute(caster, target, spellPower, _rng);
+        PhysicalAttack.Apply(target, result.Damage);
+        ATBClock.ResetAfterAction(caster);
+        return new BattleEvent(caster, target, result);
     }
 
     /// <summary>Enemy AI, 1999 grade: smack a random living player.</summary>
