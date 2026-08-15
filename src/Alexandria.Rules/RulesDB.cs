@@ -8,7 +8,8 @@ public sealed record RulesDB(
     IReadOnlyDictionary<Int32, Armor> Armors,
     IReadOnlyDictionary<Int32, ItemStats> GrowthStats,
     IReadOnlyList<DefaultEquipmentSet> DefaultEquipment,
-    IReadOnlyDictionary<Int32, BattleAction> Actions)
+    IReadOnlyDictionary<Int32, BattleAction> Actions,
+    IReadOnlyDictionary<Int32, StatusSet> StatusSets)
 {
     public static RulesDB Load(String dataRoot) => new(
         CharacterBaseStats.Load(Path.Combine(dataRoot, @"Characters\BaseStats.csv")),
@@ -18,6 +19,7 @@ public sealed record RulesDB(
         Armor.Load(Path.Combine(dataRoot, @"Items\Armors.csv")),
         ItemStats.Load(Path.Combine(dataRoot, @"Items\Stats.csv")),
         DefaultEquipmentSet.Load(Path.Combine(dataRoot, @"Characters\DefaultEquipment.csv")),
-        BattleAction.Load(Path.Combine(dataRoot, @"Battle\Actions.csv")));
+        BattleAction.Load(Path.Combine(dataRoot, @"Battle\Actions.csv")),
+        StatusSet.Load(Path.Combine(dataRoot, @"Battle\StatusSets.csv")));
 }
 

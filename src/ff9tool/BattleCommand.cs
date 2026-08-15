@@ -43,7 +43,7 @@ public static class BattleCommand
                     .Load(Path.Combine(DataRoot, @"Characters\Abilities\Vivi.csv"))
                     .Where(a => a.Ability.Kind == AbilityKind.Active)
                     .Select(a => db.Actions[a.Ability.ID])
-                    .Where(s => s.ScriptID == 9)
+                    .Where(s => s.ScriptID is 9 or 11)
             ]
         };
         
@@ -55,7 +55,7 @@ public static class BattleCommand
             if (engine.IsEnemy(ready))
                 Narrate(engine.ExecuteEnemyTurn(ready));
             else
-                Narrate(TakePlayerTurn(engine, ready, spellbook));
+                Narrate(TakePlayerTurn(db, engine, ready, spellbook));
         }
         
         Console.WriteLine(engine.Victory ? "\n*** VICTORY! ***" : "\n*** The party has fallen... ***");
@@ -86,15 +86,17 @@ public static class BattleCommand
     {
         var line = e.Result.Outcome switch
         {
+            AttackOutcome.Miss => $"{e.Actor.Name}'s attack misses {e.Target.Name}!",
             AttackOutcome.Evaded => $"{e.Actor.Name} attacks {e.Target.Name} — evaded!",
             AttackOutcome.CriticalHit => $"{e.Actor.Name} lands a CRITICAL on {e.Target.Name} for {e.Result.Damage}!",
+            AttackOutcome.Hit when e.Result.Damage == 0 => $"{e.Target.Name} succumbs!",
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
         Console.WriteLine(line + (e.Target.IsAlive ? "" : $"  {e.Target.Name} falls!"));
     }
 
-    private static BattleEvent TakePlayerTurn(BattleEngine engine, BattleUnit actor,
-        Dictionary<String, List<BattleAction>> spellbook)
+    private static BattleEvent TakePlayerTurn(RulesDB db, BattleEngine engine,
+        BattleUnit actor, Dictionary<String, List<BattleAction>> spellbook)
     {
         Console.WriteLine();
         foreach (var p in engine.Players)
@@ -115,7 +117,10 @@ public static class BattleCommand
 
                 var target = PromptEnemy(engine, $"On which target? ");
                 Console.WriteLine($"{actor.Name} casts {spell.Name}!");
-                return engine.ExecuteSpell(actor, target, spell.Power, spell.MP);
+                return spell.ScriptID == 11
+                    ? engine.ExecuteStatusSpell(actor, target,
+                        db.StatusSets[spell.StatusIndex].StatusMask, spell.Rate, spell.MP)
+                    : engine.ExecuteSpell(actor, target, spell.Power, spell.MP);
             }
         }
         return engine.ExecuteAttack(actor, PromptEnemy(engine, $"{actor.Name} attacks which target? "));

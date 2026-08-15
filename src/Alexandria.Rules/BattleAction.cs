@@ -8,6 +8,7 @@ public sealed record BattleAction(
     Byte Elements,
     Int32 Rate,
     Byte Category,
+    Int32 StatusIndex,
     Int32 MP)
 {
     public static IReadOnlyDictionary<Int32, BattleAction> Load(String path)
@@ -20,6 +21,7 @@ public sealed record BattleAction(
                 Byte.Parse(f[12]),
                 Int32.Parse(f[13]),
                 Byte.Parse(f[14]),
+                Int32.Parse(f[15]),
                 Int32.Parse(f[16])))
             .ToDictionary(s => s.ID);
 }

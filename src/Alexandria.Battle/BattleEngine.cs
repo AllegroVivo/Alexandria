@@ -70,6 +70,35 @@ public sealed class BattleEngine
         return new BattleEvent(caster, target, result);
     }
 
+    /// <summary>Status magic (mirror: 0011_MagicApplyNegativeStatusScript): one accuracy
+    /// roll folding in spell rate, caster Magic/4, and level difference; Shell and
+    /// multi-targeting halve it; no damage - on a hit the statuses simply land.</summary>
+    public BattleEvent ExecuteStatusSpell(BattleUnit caster, BattleUnit target,
+        UInt32 statusMask, Int32 baseRate, Int32 mpCost, Boolean multiTarget = false)
+    {
+        caster.CurrentMP -= mpCost;
+
+        var hitRate = Math.Clamp(baseRate + (caster.Magic >> 2) + caster.Level - target.Level, 1, 100);
+        if (target.Has(BattleStatus.Shell))
+            hitRate /= 2;
+        if (multiTarget)
+            hitRate /= 2;
+
+        AttackResult result;
+        if (hitRate <= _rng.Next(0, UInt16.MaxValue) % 100)
+            result = new AttackResult(AttackOutcome.Miss, 0);
+        else if (target.MagicalEvade > _rng.Next(0, UInt16.MaxValue) % 100)
+            result = new AttackResult(AttackOutcome.Evaded, 0);
+        else
+        {
+            target.Statuses |= (BattleStatus)statusMask;
+            result = new AttackResult(AttackOutcome.Hit, 0);
+        }
+
+        ATBClock.ResetAfterAction(caster);
+        return new BattleEvent(caster, target, result);
+    }
+
     /// <summary>Enemy AI, 1999 grade: smack a random living player.</summary>
     public BattleEvent ExecuteEnemyTurn(BattleUnit enemy)
     {
