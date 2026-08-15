@@ -1,9 +1,13 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Alexandria.Battle/Alexandria.Battle.csproj" />
     <Project Path="src/Alexandria.Formats/Alexandria.Formats.csproj" />
+    <Project Path="src/Alexandria.Rules/Alexandria.Rules.csproj" />
     <Project Path="src/ff9tool/ff9tool.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Alexandria.Battle.Tests/Alexandria.Battle.Tests.csproj" />
     <Project Path="tests/Alexandria.Formats.Tests/Alexandria.Formats.Tests.csproj" />
+    <Project Path="tests/Alexandria.Rules.Tests/Alexandria.Rules.Tests.csproj" />
   </Folder>
 </Solution>

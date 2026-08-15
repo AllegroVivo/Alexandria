@@ -1,10 +1,15 @@
 ﻿using System.Text.Json;
 using System.Text.RegularExpressions;
 using Alexandria.Formats.Scenes.BattleScene;
+using ff9tool;
+
+if (args.Length > 0 && args[0] == "battle")
+{
+    BattleCommand.Run(args.Skip(1).ToArray());
+    return;
+}
 
 var path = args[0];
-
-
 if (File.Exists(path))
 {
     using var reader = new BinaryReader(File.OpenRead(path));

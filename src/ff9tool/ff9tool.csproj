@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Alexandria.Formats\Alexandria.Formats.csproj" />
+    <ProjectReference Include="..\Alexandria.Battle\Alexandria.Battle.csproj" />
+    <ProjectReference Include="..\Alexandria.Rules\Alexandria.Rules.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
