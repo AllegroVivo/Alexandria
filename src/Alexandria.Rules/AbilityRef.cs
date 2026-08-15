@@ -18,4 +18,11 @@ public readonly record struct AbilityRef(AbilityKind Kind, Int32 ID)
             => new AbilityRef(AbilityKind.Support, Int32.Parse(text[3..])),
         _ => throw new FormatException($"Unrecognized ability reference: '{text}'")
     };
+
+    public static IReadOnlyList<AbilityRef> ParseArray(String field) =>
+    [
+        .. field.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(Parse)
+            .Where(a => a.Kind != AbilityKind.None)
+    ];
 }

@@ -12,7 +12,7 @@ public static class MagicAttack
         Random rng, Boolean multiTarget = false, Int32 damageModifiers = 0)
     {
         var attack = caster.Magic
-                     + rng.Next(0, UInt16.MaxValue) % (1 + ((caster.Level + caster.Magic) >> 3));
+                     + rng.Rand16() % (1 + ((caster.Level + caster.Magic) >> 3));
 
         var modifiers = damageModifiers + (multiTarget ? -1 : 0);
         if (target.Has(BattleStatus.Shell))
@@ -22,6 +22,18 @@ public static class MagicAttack
 
         var damage = Math.Max(attack, 1) * Math.Max(spellPower - target.MagicalDefense, 1);
         return new AttackResult(AttackOutcome.Hit, Math.Min(damage, DamageCap));
+    }
+
+    /// <summary>Rider statuses on damage spells (mirror: TryAlterMagicStatuses): a flat
+    /// rate vs rand%100 roll, fully independent of the damage — Shell, level, and stats
+    /// never touch it. Rolled only when the action carries a status set.</summary>
+    public static BattleStatus TryRiderStatuses(BattleUnit target, UInt32 statuses, Int32 rate, Random rng)
+    {
+        if (statuses == 0 || rate <= rng.Rand16() % 100)
+            return 0;
+        var added = (BattleStatus)statuses;
+        target.Statuses |= added;
+        return added;
     }
 }
 

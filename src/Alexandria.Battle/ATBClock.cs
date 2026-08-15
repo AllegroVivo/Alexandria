@@ -42,14 +42,14 @@ public static class ATBClock
             {
                 EncounterKind.Preemptive => p.ATBMax - 1,
                 EncounterKind.BackAttack => 0,
-                _ => rng.Next(0, UInt16.MaxValue) % p.ATBMax
+                _ => rng.Rand16() % p.ATBMax
             };
         }
 
         foreach (var e in enemies)
             e.ATBGauge = kind == EncounterKind.Preemptive
                 ? 0
-                : rng.Next(0, UInt16.MaxValue) % e.ATBMax;
+                : rng.Rand16() % e.ATBMax;
     }
 }
 

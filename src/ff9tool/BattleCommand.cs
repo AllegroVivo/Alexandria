@@ -17,13 +17,26 @@ public static class BattleCommand
 
         using var reader = new BinaryReader(File.OpenRead(Path.Combine(sceneDir, "dbfile0000.raw16")));
         var scene = BattleScene.Read(reader);
+        
+        var rosters = MemoriaJsonParser.ReadPlayableSequences(Path.Combine(sceneDir, "Scripts.json"));
+        var attackNames = Directory.EnumerateFiles(sceneDir, "*.seq")
+            .Select(f => Path.GetFileNameWithoutExtension(f))
+            .ToDictionary(s => Int32.Parse(s[..2]), s => s[3..]);
+        
         var names = MemoriaJsonParser.ReadEnemies(Path.Combine(sceneDir, "Enemies.json"));
-
         var enemies = scene.Monsters
             .Select((m, i) =>
             {
                 var unit = BattleUnit.FromEnemy(names[i].DisplayName, m);
                 unit.AttackPower = scene.Attacks[names[i].DefaultAttack].Power;
+                unit.Attacks.AddRange(rosters[i].Select(n =>
+                {
+                    var a = scene.Attacks[n];
+                    return new EnemyAttack(
+                        attackNames.GetValueOrDefault(n, $"Attack {n}"),
+                        a.ScriptID, a.Power, a.Rate,
+                        db.StatusSets[a.AddStatusNo].StatusMask, a.MP);
+                }));
                 return unit;
             })
             .ToList();
@@ -35,28 +48,23 @@ public static class BattleCommand
             BuildCharacter(db, "Steiner", level),
             BuildCharacter(db, "Vivi", level)
         };
-        var spellbook = new Dictionary<String, List<BattleAction>>
-        {
-            ["Vivi"] =
-            [
-                .. CharacterAbilities
-                    .Load(Path.Combine(DataRoot, @"Characters\Abilities\Vivi.csv"))
-                    .Where(a => a.Ability.Kind == AbilityKind.Active)
-                    .Select(a => db.Actions[a.Ability.ID])
-                    .Where(s => s.ScriptID is 9 or 11)
-            ]
-        };
+        var spellbook = party.ToDictionary(
+            p => p.Name,
+            p => Spellbook.For(db, p.Name).Where(s => s.ScriptID is 9 or 11).ToList());
         
         Console.WriteLine($"— {String.Join(" and ", enemies.Select(e => e.Name))} appeared! —");
 
         var engine = new BattleEngine(party, enemies, EncounterKind.Normal, new Random());
         while (engine.TickUntilReady() is { } ready)
         {
+            NarrateTicks(engine);
+            
             if (engine.IsEnemy(ready))
                 Narrate(engine.ExecuteEnemyTurn(ready));
             else
                 Narrate(TakePlayerTurn(db, engine, ready, spellbook));
         }
+        NarrateTicks(engine);
         
         Console.WriteLine(engine.Victory ? "\n*** VICTORY! ***" : "\n*** The party has fallen... ***");
     }
@@ -84,6 +92,9 @@ public static class BattleCommand
 
     private static void Narrate(BattleEvent e)
     {
+        if(e.Attack is not null)
+            Console.WriteLine($"{e.Actor.Name} {(e.Attack.ScriptID == 9 ? "casts" : "uses")} {e.Attack.Name}!");
+        
         var line = e.Result.Outcome switch
         {
             AttackOutcome.Miss => $"{e.Actor.Name}'s attack misses {e.Target.Name}!",
@@ -92,7 +103,24 @@ public static class BattleCommand
             AttackOutcome.Hit when e.Result.Damage == 0 => $"{e.Target.Name} succumbs!",
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
+        if (e.StatusesAdded != 0 && e.Result.Damage > 0)
+            line += $"  {e.Target.Name} is afflicted with {e.StatusesAdded}!";
         Console.WriteLine(line + (e.Target.IsAlive ? "" : $"  {e.Target.Name} falls!"));
+    }
+
+    private static void NarrateTicks(BattleEngine engine)
+    {
+        foreach (var tick in engine.PendingStatusEvents)
+        {
+            Console.WriteLine(tick switch
+            {
+                { Expired: true } => $"{tick.Unit.Name}'s {tick.Status} wears off.",
+                { HPDelta: < 0 } =>
+                    $"{tick.Unit.Name} takes {-tick.HPDelta} poison damage!{(tick.Unit.IsAlive ? "" : $"  {tick.Unit.Name} falls!")}",
+                _ => $"{tick.Unit.Name} regenerates {tick.HPDelta} HP."
+            });
+        }
+        engine.PendingStatusEvents.Clear();
     }
 
     private static BattleEvent TakePlayerTurn(RulesDB db, BattleEngine engine,
@@ -120,7 +148,8 @@ public static class BattleCommand
                 return spell.ScriptID == 11
                     ? engine.ExecuteStatusSpell(actor, target,
                         db.StatusSets[spell.StatusIndex].StatusMask, spell.Rate, spell.MP)
-                    : engine.ExecuteSpell(actor, target, spell.Power, spell.MP);
+                    : engine.ExecuteSpell(actor, target, spell.Power, spell.MP,
+                        db.StatusSets[spell.StatusIndex].StatusMask, spell.Rate);
             }
         }
         return engine.ExecuteAttack(actor, PromptEnemy(engine, $"{actor.Name} attacks which target? "));

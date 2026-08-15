@@ -24,6 +24,11 @@ public sealed class BattleUnit
     
     /// <summary>Basic attack power: weapon power for players, attack data for enemies. Placeholder default.</summary>
     public Int32 AttackPower { get; set; } = 10;
+    
+    public Dictionary<BattleStatus, Int32> OprCounters { get; } = [];
+    public Dictionary<BattleStatus, Int32> ContiCounters { get; } = [];
+    
+    public List<EnemyAttack> Attacks { get; } = [];
 
     public Boolean IsAlive => CurrentHP > 0;
 

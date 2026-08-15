@@ -13,6 +13,8 @@ public sealed class BattleEngine
     
     public IReadOnlyList<BattleUnit> Players { get; }
     public IReadOnlyList<BattleUnit> Enemies { get; }
+    
+    public List<StatusTickEvent> PendingStatusEvents { get; } = [];
 
     public BattleEngine(IReadOnlyList<BattleUnit> players, IReadOnlyList<BattleUnit> enemies,
         EncounterKind kind, Random rng, Int32 coefficient = ATBClock.NormalCoefficient)
@@ -41,7 +43,10 @@ public sealed class BattleEngine
                 return ready;
 
             foreach (var unit in AllUnits)
+            {
                 ATBClock.Tick(unit, _coefficient);
+                PendingStatusEvents.AddRange(StatusTicker.Tick(unit, _coefficient));
+            }
         }
         return null;
     }
@@ -49,10 +54,10 @@ public sealed class BattleEngine
     public Boolean IsEnemy(BattleUnit unit) => Enemies.Contains(unit);
 
     /// <summary>Basic attack + damage application + gauge reset: one resolved turn.</summary>
-    public BattleEvent ExecuteAttack(BattleUnit attacker, BattleUnit target)
+    public BattleEvent ExecuteAttack(BattleUnit attacker, BattleUnit target, Int32? power = null)
     {
         var result = PhysicalAttack.Execute(
-            attacker, target, attacker.AttackPower, _rng, enemyStyle: IsEnemy(attacker));
+            attacker, target, power ?? attacker.AttackPower, _rng, enemyStyle: IsEnemy(attacker));
         PhysicalAttack.Apply(target, result.Damage);
         if (result.Damage > 0 && target.Has(BattleStatus.Sleep))
             target.Statuses &= ~BattleStatus.Sleep;
@@ -61,13 +66,15 @@ public sealed class BattleEngine
     }
 
     /// <summary>Cast + MP spend + damage + gauge reset: one resolved magic turn.</summary>
-    public BattleEvent ExecuteSpell(BattleUnit caster, BattleUnit target, Int32 spellPower, Int32 mpCost)
+    public BattleEvent ExecuteSpell(BattleUnit caster, BattleUnit target, Int32 spellPower, 
+        Int32 mpCost, UInt32 riderStatuses = 0, Int32 riderRate = 0)
     {
         caster.CurrentMP -= mpCost;
         var result = MagicAttack.Execute(caster, target, spellPower, _rng);
+        var added = MagicAttack.TryRiderStatuses(target, riderStatuses, riderRate, _rng);
         PhysicalAttack.Apply(target, result.Damage);
         ATBClock.ResetAfterAction(caster);
-        return new BattleEvent(caster, target, result);
+        return new BattleEvent(caster, target, result, added);
     }
 
     /// <summary>Status magic (mirror: 0011_MagicApplyNegativeStatusScript): one accuracy
@@ -85,9 +92,9 @@ public sealed class BattleEngine
             hitRate /= 2;
 
         AttackResult result;
-        if (hitRate <= _rng.Next(0, UInt16.MaxValue) % 100)
+        if (hitRate <= _rng.Rand16() % 100)
             result = new AttackResult(AttackOutcome.Miss, 0);
-        else if (target.MagicalEvade > _rng.Next(0, UInt16.MaxValue) % 100)
+        else if (target.MagicalEvade > _rng.Rand16() % 100)
             result = new AttackResult(AttackOutcome.Evaded, 0);
         else
         {
@@ -96,15 +103,37 @@ public sealed class BattleEngine
         }
 
         ATBClock.ResetAfterAction(caster);
-        return new BattleEvent(caster, target, result);
+        return new BattleEvent(caster, target, result,
+            result.Outcome == AttackOutcome.Hit ? (BattleStatus)statusMask : 0);
     }
 
-    /// <summary>Enemy AI, 1999 grade: smack a random living player.</summary>
+    /// <summary>Enemy turn. Target: uniform among living players (mirror: the B_SELECT
+    /// operator, EventEngine.OperatorSelect). Attack choice: uniform among affordable
+    /// roster entries.
     public BattleEvent ExecuteEnemyTurn(BattleUnit enemy)
     {
         var living = Players.Where(p => p.IsAlive).ToList();
-        return ExecuteAttack(enemy, living[_rng.Next(0, UInt16.MaxValue) % living.Count]);
+        var target = living[_rng.Rand16() % living.Count];
+
+        var usable = enemy.Attacks.Where(a => a.MP <= enemy.CurrentMP).ToList();
+        if (usable.Count == 0)
+            return ExecuteAttack(enemy, target);
+
+        var attack = usable[_rng.Rand16() % usable.Count];
+        enemy.CurrentMP -= attack.MP;
+        var e = attack.ScriptID switch
+        {
+            9 => ExecuteSpell(enemy, target, attack.Power, 0, attack.StatusMask, attack.Rate),
+            11 => ExecuteStatusSpell(enemy, target, attack.StatusMask, attack.Rate, 0),
+            _ => ExecuteAttack(enemy, target, attack.Power)
+        };
+        return e with { Attack = attack };
     }
 }
 
-public sealed record BattleEvent(BattleUnit Actor, BattleUnit Target, AttackResult Result);
+public sealed record BattleEvent(
+    BattleUnit Actor,
+    BattleUnit Target,
+    AttackResult Result,
+    BattleStatus StatusesAdded = 0,
+    EnemyAttack? Attack = null);

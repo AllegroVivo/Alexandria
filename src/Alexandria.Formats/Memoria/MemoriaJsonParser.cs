@@ -11,6 +11,18 @@ public class MemoriaJsonParser
         => JsonSerializer.Deserialize<List<EnemyDto>>(
             FixMissingCommas(File.ReadAllText(path)), Options) ?? [];
 
+    /// <summary>Per-species usable attack indices, recovered by Memoria from the animation
+    /// sequence data (each species' sequences share a base-anim offset). Montype order
+    /// matches the scene's monster order.</summary>
+    public static IReadOnlyDictionary<Int32, IReadOnlyList<Int32>> ReadPlayableSequences(String path)
+    {
+        var json = FixMissingCommas(File.ReadAllText(path));
+        var dto = JsonSerializer.Deserialize<ScriptsDto>(json, Options);
+        return dto.SequenceProperty.ToDictionary(
+            p => p.Montype,
+            p => (IReadOnlyList<Int32>)p.PlayableSequence);
+    }
+
     private static String FixMissingCommas(String raw)
     {
         var lines = raw.Split('\n');
@@ -47,6 +59,10 @@ public class MemoriaJsonParser
         }
         return null;
     }
+
+    private sealed record ScriptsDto(List<SequencePropertyDto> SequenceProperty);
+
+    private sealed record SequencePropertyDto(Int32 Montype, List<Int32> PlayableSequence);
 }
 
 public sealed record ElementDto(Byte Dex, Byte Str, Byte Mgc, Byte Wpr);

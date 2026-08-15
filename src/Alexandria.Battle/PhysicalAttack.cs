@@ -27,22 +27,22 @@ public static class PhysicalAttack
             hitRate /= 2;
         if (target.Has(BattleStatus.Defend))
             hitRate /= 2;
-        if (hitRate <= rng.Next(0, UInt16.MaxValue) % 100)
+        if (hitRate <= rng.Rand16() % 100)
             return new AttackResult(AttackOutcome.Miss, 0);
         
         // evade roll: evaded when target.PhysicalEvade > rand16 % 100
-        if (target.PhysicalEvade > rng.Next(0, UInt16.MaxValue) % 100)
+        if (target.PhysicalEvade > rng.Rand16() % 100)
             return new AttackResult(AttackOutcome.Evaded, 0);
         
         // attack roll: Str + rand16 % (1 + ((Level + Str) >> shift)); players >>3, enemies >>2
         var shift = enemyStyle ? 2 : 3;
         var attack = attacker.Strength
-                     + rng.Next(0, UInt16.MaxValue) % (1 + ((attacker.Level + attacker.Strength) >> shift));
+                     + rng.Rand16() % (1 + ((attacker.Level + attacker.Strength) >> shift));
         
         // crit: q = Spirit >> 2; crit when rand16 % q > rand16 % 100 (~Spirit/4 %)
         var crit = false;
         var q = attacker.Spirit >> 2;
-        if (q != 0 && rng.Next(0, UInt16.MaxValue) % q > rng.Next(0, UInt16.MaxValue) % 100)
+        if (q != 0 && rng.Rand16() % q > rng.Rand16() % 100)
         {
             attack *= 2;
             crit = true;

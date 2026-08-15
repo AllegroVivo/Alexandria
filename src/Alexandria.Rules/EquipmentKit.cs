@@ -6,7 +6,8 @@ public sealed record EquipmentKit(
     Int32 PhysicalEvade,
     Int32 MagicalDefense,
     Int32 MagicalEvade,
-    GrowthBonuses GrowthPerLevel)
+    GrowthBonuses GrowthPerLevel,
+    IReadOnlyList<AbilityRef> TaughtAbilities)
 {
     public static EquipmentKit Resolve(DefaultEquipmentSet set,
         IReadOnlyDictionary<Int32, Item> items,
@@ -16,11 +17,13 @@ public sealed record EquipmentKit(
     {
         Int32[] slots = [set.Weapon, set.Head, set.Wrist, set.Armor, set.Accessory];
         Int32 power = 0, pd = 0, pe = 0, md = 0, me = 0;
+        List<AbilityRef> taught = [];
 
         foreach (var id in slots)
         {
             if (id < 0 || !items.TryGetValue(id, out var item))
                 continue;
+            taught.AddRange(item.TaughtAbilities);
             if (item.WeaponID >= 0 && weapons.TryGetValue(item.WeaponID, out var w))
                 power = w.Power;
             if (item.ArmorID >= 0 && armors.TryGetValue(item.ArmorID, out var a))
@@ -33,7 +36,7 @@ public sealed record EquipmentKit(
         }
 
         var growth = Equipment.GrowthPerLevel(slots.Where(id => id >= 0), items, growthStats);
-        return new EquipmentKit(power, pd, pe, md, me, growth);
+        return new EquipmentKit(power, pd, pe, md, me, growth, taught);
     }
 }
 
