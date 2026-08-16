@@ -182,8 +182,20 @@ public static class ExprDecoder
 
     private static String MemberName(Byte id) => id switch
     {
-        35 => "MAX_HP",
-        36 => "HP",
+        35 => "MAX_HP", 36 => "HP", 37 => "MAX_MP", 38 => "MP",
+        39 => "MAX_ATB", 40 => "ATB", 41 => "LEVEL",
+        42 => "STATUS_IMMUNE_B", 43 => "STATUS_IMMUNE_A",
+        44 => "STATUS_AUTO_B", 45 => "STATUS_AUTO_A",
+        46 => "STATUS_CURRENT_B", 47 => "STATUS_CURRENT_A",
+        48 => "ELEMENT_IMMUNE", 49 => "ELEMENT_ABSORB",
+        50 => "ELEMENT_HALF", 51 => "ELEMENT_WEAK",
+        52 => "TARGETABLE", 53 => "DISAPPEAR", 54 => "SHADOW",
+        57 => "MODEL", 58 => "MODEL_VISIBLE",
+        64 => "ROW", 65 => "COLUMN", 66 => "MODEL_TYPE",
+        67 => "CATEGORY", 68 => "CLASS", 69 => "STAND_ANIMATION",
+        70 => "ENEMY_ID", 71 => "SET_BONUS",
+        72 => "STRENGTH", 73 => "MAGIC", 74 => "DEFENCE", 75 => "EVADE",
+        76 => "MAGICAL_DEFENCE", 77 => "MAGICAL_EVADE",
         _ => $"stat[{id}]"
     };
 
@@ -191,12 +203,25 @@ public static class ExprDecoder
     {
         0 => "SV_Target",
         1 => "SV_FunctionEnemy",
+        2 => "AllPlayers",
+        3 => "AllEnemies",
+        4 => "Everyone",
+        5 => "SV_5",
+        6 => "SV_6",
         _ => $"SysList[{slot}]"
     };
 
     private static String SysvarName(Byte id) => id switch
     {
         0 => "Random8",
+        6 => "Gil", 8 => "MessageSignal", 9 => "LastChoice",
+        20 => "PlayTime", 24 => "BattleMap",
+        25 => "SeqBusy", 26 => "InBattle", 27 => "BattleResult",
+        28 => "CurCommand", 29 => "CurAbility", 30 => "BattlePhase",
+        31 => "EnemyCount", 33 => "PartyGil",
+        36 => "Attacker", 37 => "CurTargets",
+        38 => "CasterWeaponElement", 39 => "CurElement",
+        40 => "LoadStatus", 41 => "BonusExp", 44 => "BonusAP",
         _ => $"Sysvar[{id}]"
     };
 }

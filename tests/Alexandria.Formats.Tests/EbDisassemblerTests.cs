@@ -69,4 +69,17 @@ public class EbDisassemblerTests
         Assert.Equal("Curaga", text[10]);   // 1 enemy name + attack index 9
         Assert.Equal("The spiritual power raised the attack range.", text[16]);
     }
+    
+    [Fact]
+    public void Ozmas_loop_hunts_levels_divisible_by_four()
+    {
+        using var reader = new BinaryReader(File.OpenRead(
+            Path.Combine(SceneRoot, "EVT_BATTLE_CH_E093", "EVT_BATTLE_CH_E093.eb")));
+        var loop = EbScript.Read(reader).Entries[1].Functions.Single(f => f.Tag == 1);
+
+        var lines = EbDisassembler.Disassemble(loop);
+
+        Assert.Contains(lines, l => l.Contains("LEVEL % 4"));
+        Assert.Contains(lines, l => l.Contains("ATB =* (SV_FunctionEnemy->MAX_ATB - 1)"));
+    }
 }

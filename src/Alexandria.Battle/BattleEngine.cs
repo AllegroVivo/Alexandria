@@ -117,6 +117,20 @@ public sealed class BattleEngine
     /// roster entries.
     public BattleEvent ExecuteEnemyTurn(BattleUnit enemy)
     {
+        if (enemy.Brain is not null
+            &&enemy.Brain.Decide(enemy, Players, _rng) is var(attackId, chosen)
+            && enemy.Attacks.FirstOrDefault(a=>a.ID==attackId) is {} scripted)
+        {
+            enemy.CurrentMP-=scripted.MP;
+            var ev = scripted.ScriptID switch
+            {
+                9 => ExecuteSpell(enemy, chosen, scripted.Power, 0, scripted.StatusMask, scripted.Rate, scripted.Elements),
+                11 => ExecuteStatusSpell(enemy, chosen, scripted.StatusMask, scripted.Rate, 0),
+                _ => ExecuteAttack(enemy, chosen, scripted.Power, scripted.Elements)
+            };
+            return ev with { Attack = scripted };
+        }
+        
         var living = Players.Where(p => p.IsAlive).ToList();
         var target = living[_rng.Rand16() % living.Count];
 

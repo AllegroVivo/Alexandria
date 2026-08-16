@@ -9,5 +9,6 @@ public sealed record EnemyAttack(
     Element Elements,
     Int32 Rate,
     UInt32 StatusMask,
-    Int32 MP);
+    Int32 MP,
+    Int32 ID = -1);
 

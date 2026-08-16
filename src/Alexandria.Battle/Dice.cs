@@ -5,6 +5,13 @@ namespace Alexandria.Battle;
 /// the single overload the test dice override.</summary>
 public static class Dice
 {
-    public static Int32 Rand16(this Random rng) => rng.Next(0, UInt16.MaxValue + 1);
+    extension(Random rng)
+    {
+        /// <summary>Vanilla random8 (mirror: Comn.random8 = Random.Range(0, 256)) — the
+        /// script VM's die, distinct from the battle formulas' rand16.</summary>
+        public Int32 Rand8() => rng.Next(0, 256);
+
+        public Int32 Rand16() => rng.Next(0, UInt16.MaxValue + 1);
+    }
 }
 

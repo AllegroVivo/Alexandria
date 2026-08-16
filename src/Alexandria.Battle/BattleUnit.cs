@@ -28,6 +28,8 @@ public sealed class BattleUnit
     public Dictionary<BattleStatus, Int32> OprCounters { get; } = [];
     public Dictionary<BattleStatus, Int32> ContiCounters { get; } = [];
     
+    public IEnemyBrain? Brain { get; set; }
+    
     public List<EnemyAttack> Attacks { get; } = [];
 
     public Boolean IsAlive => CurrentHP > 0;

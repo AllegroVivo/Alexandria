@@ -4,7 +4,7 @@ namespace Alexandria.Formats.Scripts;
 /// Linear disassembler for one .eb function (mirror: EBin.next/jumpToCommand +
 /// EventEngine.DoEventCode). Instruction lengths are self-describing: native low
 /// opcodes have bespoke layouts; handler opcodes read one flag byte then one
-/// field per argument — an inline immediate (width fixed per opcode) when the
+/// field per argument - an inline immediate (width fixed per opcode) when the
 /// flag bit is 0, an expression stream when it is 1. An opcode we cannot size
 /// halts the function honestly; the census aggregates blockers so we know which
 /// opcodes to teach it next.
@@ -13,7 +13,7 @@ public static class EbDisassembler
 {
     private static readonly Dictionary<Int32, (String Name, Int32[] ArgWidths)> Known = new()
     {
-        [0x38] = ("Attack", [1]), // BTLCMD — target comes from SV_Target
+        [0x38] = ("Attack", [1]), // BTLCMD - target comes from SV_Target
         [0x4A] = ("BattleSet", [1, 2]), // BTLSET
         [0x1B] = ("ContinueBattleMusic", [1]),
         [0x4C] = ("AttachObject", [1, 1, 1]),
@@ -22,6 +22,16 @@ public static class EbDisassembler
         [0xE5] = ("AttackSpecial", [1]),
         [0xEB] = ("CloseAllWindows", []),
         [0xEC] = ("FadeFilter", [1, 1, 1, 1, 1, 1]),
+        [0x1F] = ("WindowSync", [1, 1, 2]),    // window id, UI flags, text id
+        [0xE1] = ("TerminateBattle", []),      // battle ends, no rewards
+    };
+
+    private static readonly Dictionary<Int32, String> BattleSetNames = new()
+    {
+        [32] = "DisableATB", [33] = "EndBattle", [34] = "GameOver",
+        [35] = "EnableATB", [36] = "RunCamera", [37] = "ChangeField",
+        [38] = "AddGil", [39] = "DragonKill", [40] = "FadeSong",
+        [43] = "EffectCounter", [44] = "BonusAP"
     };
 
     public static List<String> Disassemble(EbFunction fn,
@@ -174,11 +184,18 @@ public static class EbDisassembler
                                                 && Int32.TryParse(args[0], out var atk)
                                                 && attackNames.TryGetValue(atk, out var atkName))
                         args[0] = $"{args[0]} \"{atkName}\"";
+
+                    if (op == 0x4A && Int32.TryParse(args[0], out var bs)
+                                   && BattleSetNames.TryGetValue(bs, out var bsName))
+                        args[0] = $"{args[0]} \"{bsName}\"";
                     
-                    if (op == 0xD0 && battleText is not null
-                                   && Int32.TryParse(args[0], out var mes)
-                                   && mes < battleText.Count)
-                        args[0] = $"{args[0]} \"{battleText[mes]}\"";
+                    if (battleText is not null)
+                    {
+                        var textArg = op switch { 0xD0 => 0, 0x1F => 2, _ => -1 };
+                        if (textArg >= 0 && Int32.TryParse(args[textArg], out var mes)
+                                         && mes < battleText.Count)
+                            args[textArg] = $"{args[textArg]} \"{battleText[mes]}\"";
+                    }
                     
                     lines.Add($"@{at:D4}: {sig.Name}({String.Join(", ", args)})");
                     break;

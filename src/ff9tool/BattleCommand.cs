@@ -14,16 +14,16 @@ public static class BattleCommand
     {
         var sceneDir = args.Length > 0 ? args[0] : DefaultScene;
         var db = RulesDB.Load(DataRoot);
+        var rng = new Random();
 
         using var reader = new BinaryReader(File.OpenRead(Path.Combine(sceneDir, "dbfile0000.raw16")));
         var scene = BattleScene.Read(reader);
-        
+        var names = MemoriaJsonParser.ReadEnemies(Path.Combine(sceneDir, "Enemies.json"));
         var rosters = MemoriaJsonParser.ReadPlayableSequences(Path.Combine(sceneDir, "Scripts.json"));
         var attackNames = Directory.EnumerateFiles(sceneDir, "*.seq")
             .Select(f => Path.GetFileNameWithoutExtension(f))
             .ToDictionary(s => Int32.Parse(s[..2]), s => s[3..]);
         
-        var names = MemoriaJsonParser.ReadEnemies(Path.Combine(sceneDir, "Enemies.json"));
         var enemies = scene.Monsters
             .Select((m, i) =>
             {
@@ -35,8 +35,9 @@ public static class BattleCommand
                     return new EnemyAttack(
                         attackNames.GetValueOrDefault(n, $"Attack {n}"),
                         a.ScriptID, a.Power, (Element)a.Elements, a.Rate,
-                        db.StatusSets[a.AddStatusNo].StatusMask, a.MP);
+                        db.StatusSets[a.AddStatusNo].StatusMask, a.MP, n);
                 }));
+                unit.Brain = EnemyBrains.For(names[i].DisplayName, rng);
                 return unit;
             })
             .ToList();
@@ -54,7 +55,7 @@ public static class BattleCommand
         
         Console.WriteLine($"— {String.Join(" and ", enemies.Select(e => e.Name))} appeared! —");
 
-        var engine = new BattleEngine(party, enemies, EncounterKind.Normal, new Random());
+        var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng);
         while (engine.TickUntilReady() is { } ready)
         {
             NarrateTicks(engine);
