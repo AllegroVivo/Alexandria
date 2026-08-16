@@ -32,8 +32,8 @@ public class EnemyAttackTests
         // damage = 11 × max(25 − 0, 1) = 275; MP 464 − 12 = 452
         var knight = Knight();
         var wolf = Wolf(
-            new EnemyAttack("Rush", 8, 24, 100, 0, 0),
-            new EnemyAttack("Thundara", 9, 25, 0, 0, 12));
+            new EnemyAttack("Rush", 8, 24, Element.None, 100, 0, 0),
+            new EnemyAttack("Thundara", 9, 25, Element.Thunder, 0, 0, 12));
         var engine = new BattleEngine([knight], [wolf], EncounterKind.Preemptive, new RiggedDice(0, 1, 0));
 
         var e = engine.ExecuteEnemyTurn(wolf);
@@ -51,7 +51,7 @@ public class EnemyAttackTests
         // dice: target 0, hit 0, evade 50, attack die 0 → 11, crit q die 0 (0%4=0), crit 99
         // damage = 11 × max(22 − 6, 1) = 176
         var knight = Knight();
-        var wolf = Wolf(new EnemyAttack("Thundara", 9, 25, 0, 0, 12));
+        var wolf = Wolf(new EnemyAttack("Thundara", 9, 25, Element.Thunder, 0, 0, 12));
         wolf.CurrentMP = 5;
         var engine = new BattleEngine([knight], [wolf], EncounterKind.Preemptive,
             new RiggedDice(0, 0, 50, 0, 0, 99));
@@ -69,7 +69,7 @@ public class EnemyAttackTests
         // Tongue: script 11, rate 60 → hitRate = clamp(60 + (11>>2) + 14 − 14, 1, 100) = 62
         // dice: target 0, pick 0, accuracy 10 (62 > 10 → hit), evade 50 (MEvade 0 → no)
         var knight = Knight();
-        var wolf = Wolf(new EnemyAttack("Tongue", 11, 0, 60, (UInt32)BattleStatus.Slow, 0));
+        var wolf = Wolf(new EnemyAttack("Tongue", 11, 0, Element.None, 60, (UInt32)BattleStatus.Slow, 0));
         var engine = new BattleEngine([knight], [wolf], EncounterKind.Preemptive,
             new RiggedDice(0, 0, 10, 50));
 

@@ -34,7 +34,7 @@ public static class BattleCommand
                     var a = scene.Attacks[n];
                     return new EnemyAttack(
                         attackNames.GetValueOrDefault(n, $"Attack {n}"),
-                        a.ScriptID, a.Power, a.Rate,
+                        a.ScriptID, a.Power, (Element)a.Elements, a.Rate,
                         db.StatusSets[a.AddStatusNo].StatusMask, a.MP);
                 }));
                 return unit;
@@ -86,7 +86,10 @@ public static class BattleCommand
             Magic = sheet.Magic, Spirit = sheet.Spirit,
             PhysicalDefense = kit.PhysicalDefense, PhysicalEvade = kit.PhysicalEvade,
             MagicalDefense = kit.MagicalDefense, MagicalEvade = kit.MagicalEvade,
-            AttackPower = kit.WeaponPower
+            AttackPower = kit.WeaponPower, WeaponElement = (Element)kit.WeaponElement,
+            BonusElements = (Element)kit.BonusElements, GuardElements = (Element)kit.GuardElements,
+            AbsorbElements = (Element)kit.AbsorbElements, HalfElements = (Element)kit.HalfElements,
+            WeakElements = (Element)kit.WeakElements
         };
     }
 
@@ -100,6 +103,8 @@ public static class BattleCommand
             AttackOutcome.Miss => $"{e.Actor.Name}'s attack misses {e.Target.Name}!",
             AttackOutcome.Evaded => $"{e.Actor.Name} attacks {e.Target.Name} — evaded!",
             AttackOutcome.CriticalHit => $"{e.Actor.Name} lands a CRITICAL on {e.Target.Name} for {e.Result.Damage}!",
+            AttackOutcome.Guarded => $"{e.Target.Name} nulls it — no effect!",
+            AttackOutcome.Absorbed => $"{e.Target.Name} drinks it in — absorbs {e.Result.Damage} HP!",
             AttackOutcome.Hit when e.Result.Damage == 0 => $"{e.Target.Name} succumbs!",
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
@@ -149,7 +154,8 @@ public static class BattleCommand
                     ? engine.ExecuteStatusSpell(actor, target,
                         db.StatusSets[spell.StatusIndex].StatusMask, spell.Rate, spell.MP)
                     : engine.ExecuteSpell(actor, target, spell.Power, spell.MP,
-                        db.StatusSets[spell.StatusIndex].StatusMask, spell.Rate);
+                        db.StatusSets[spell.StatusIndex].StatusMask, spell.Rate,
+                        (Element)spell.Elements);
             }
         }
         return engine.ExecuteAttack(actor, PromptEnemy(engine, $"{actor.Name} attacks which target? "));

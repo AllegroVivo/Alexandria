@@ -6,6 +6,7 @@ public sealed record EnemyAttack(
     String Name,
     Int32 ScriptID,
     Int32 Power,
+    Element Elements,
     Int32 Rate,
     UInt32 StatusMask,
     Int32 MP);

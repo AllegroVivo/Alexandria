@@ -54,11 +54,13 @@ public sealed class BattleEngine
     public Boolean IsEnemy(BattleUnit unit) => Enemies.Contains(unit);
 
     /// <summary>Basic attack + damage application + gauge reset: one resolved turn.</summary>
-    public BattleEvent ExecuteAttack(BattleUnit attacker, BattleUnit target, Int32? power = null)
+    public BattleEvent ExecuteAttack(BattleUnit attacker, BattleUnit target, 
+        Int32? power = null, Element? element = null)
     {
         var result = PhysicalAttack.Execute(
-            attacker, target, power ?? attacker.AttackPower, _rng, enemyStyle: IsEnemy(attacker));
-        PhysicalAttack.Apply(target, result.Damage);
+            attacker, target, power ?? attacker.AttackPower, _rng,
+            enemyStyle: IsEnemy(attacker), element: element ?? attacker.WeaponElement);
+        PhysicalAttack.Apply(target, result);
         if (result.Damage > 0 && target.Has(BattleStatus.Sleep))
             target.Statuses &= ~BattleStatus.Sleep;
         ATBClock.ResetAfterAction(attacker);
@@ -67,12 +69,15 @@ public sealed class BattleEngine
 
     /// <summary>Cast + MP spend + damage + gauge reset: one resolved magic turn.</summary>
     public BattleEvent ExecuteSpell(BattleUnit caster, BattleUnit target, Int32 spellPower, 
-        Int32 mpCost, UInt32 riderStatuses = 0, Int32 riderRate = 0)
+        Int32 mpCost, UInt32 riderStatuses = 0, Int32 riderRate = 0,
+        Element element = Element.None)
     {
         caster.CurrentMP -= mpCost;
-        var result = MagicAttack.Execute(caster, target, spellPower, _rng);
-        var added = MagicAttack.TryRiderStatuses(target, riderStatuses, riderRate, _rng);
-        PhysicalAttack.Apply(target, result.Damage);
+        var result = MagicAttack.Execute(caster, target, spellPower, _rng, element: element);
+        var added = result.Outcome is AttackOutcome.Hit or AttackOutcome.Absorbed
+            ? MagicAttack.TryRiderStatuses(target, riderStatuses, riderRate, _rng)
+            : 0;
+        PhysicalAttack.Apply(target, result);
         ATBClock.ResetAfterAction(caster);
         return new BattleEvent(caster, target, result, added);
     }
@@ -123,9 +128,9 @@ public sealed class BattleEngine
         enemy.CurrentMP -= attack.MP;
         var e = attack.ScriptID switch
         {
-            9 => ExecuteSpell(enemy, target, attack.Power, 0, attack.StatusMask, attack.Rate),
+            9 => ExecuteSpell(enemy, target, attack.Power, 0, attack.StatusMask, attack.Rate, attack.Elements),
             11 => ExecuteStatusSpell(enemy, target, attack.StatusMask, attack.Rate, 0),
-            _ => ExecuteAttack(enemy, target, attack.Power)
+            _ => ExecuteAttack(enemy, target, attack.Power, attack.Elements)
         };
         return e with { Attack = attack };
     }

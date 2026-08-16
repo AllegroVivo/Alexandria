@@ -5,7 +5,12 @@ using ff9tool;
 
 if (args.Length > 0 && args[0] == "battle")
 {
-    BattleCommand.Run(args.Skip(1).ToArray());
+    BattleCommand.Run([.. args.Skip(1)]);
+    return;
+}
+if (args.Length > 0 && args[0] == "scripts")
+{
+    ScriptCommand.Run([.. args.Skip(1)]);
     return;
 }
 

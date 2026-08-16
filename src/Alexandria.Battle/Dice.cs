@@ -5,6 +5,6 @@ namespace Alexandria.Battle;
 /// the single overload the test dice override.</summary>
 public static class Dice
 {
-    public static Int32 Rand16(this Random rng) => rng.Next(0, UInt16.MaxValue);
+    public static Int32 Rand16(this Random rng) => rng.Next(0, UInt16.MaxValue + 1);
 }
 

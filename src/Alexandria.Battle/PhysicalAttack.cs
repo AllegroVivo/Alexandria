@@ -5,7 +5,9 @@ public enum AttackOutcome
     Miss,
     Evaded,
     Hit,
-    CriticalHit
+    CriticalHit,
+    Guarded,
+    Absorbed
 }
 
 /// <summary>
@@ -19,7 +21,8 @@ public static class PhysicalAttack
 
     public static AttackResult Execute(
         BattleUnit attacker, BattleUnit target, Int32 attackPower,
-        Random rng, Boolean enemyStyle = false, Int32 damageModifiers = 0)
+        Random rng, Boolean enemyStyle = false, Int32 damageModifiers = 0,
+        Element element = Element.None)
     {
         // hit roll first (TryPhysicalHit): Blind/Confuse caster and Defend target halve it
         var hitRate = 100;
@@ -39,6 +42,11 @@ public static class PhysicalAttack
         var attack = attacker.Strength
                      + rng.Rand16() % (1 + ((attacker.Level + attacker.Strength) >> shift));
         
+        // element gate (weapon element for players, attack-data element for enemies)
+        if ((element & target.GuardElements) != 0)
+            return new AttackResult(AttackOutcome.Guarded, 0);
+        var absorbed = (element & target.AbsorbElements) != 0;
+        
         // crit: q = Spirit >> 2; crit when rand16 % q > rand16 % 100 (~Spirit/4 %)
         var crit = false;
         var q = attacker.Spirit >> 2;
@@ -54,19 +62,35 @@ public static class PhysicalAttack
             modifiers -= 1;
         if (target.Has(BattleStatus.Sleep | BattleStatus.Mini))
             modifiers += 1;
+        if ((element & target.HalfElements) != 0)
+            modifiers -= 1;
+        if ((element & target.WeakElements) != 0)
+            modifiers += 1;
+        if ((element & attacker.BonusElements) != 0)
+            modifiers += 1;
         
         // situational modifiers: each +1 → ×1.5 (integer), each −1 → ×0.5 (statuses feed this later)
         for (var i = 0; i < Math.Abs(modifiers); i++)
             attack = modifiers > 0 ? attack * 3 >> 1 : attack >> 1;
-        
-        // damage = EnsureAttack × EnsurePowerDifference, capped at 9999
-        var damage = Math.Max(attack, 1) * Math.Max(attackPower - target.PhysicalDefense, 1);
-        return new AttackResult(crit ? AttackOutcome.CriticalHit : AttackOutcome.Hit, Math.Min(damage, DamageCap));
+
+        var damage = Math.Max(attack, 1)
+                     * Math.Max(attackPower - (absorbed ? 0 : target.PhysicalDefense), 1);
+        var outcome = absorbed ? AttackOutcome.Absorbed
+            : crit ? AttackOutcome.CriticalHit : AttackOutcome.Hit;
+        return new AttackResult(outcome, Math.Min(damage, DamageCap));
     }
 
     /// <summary>btl_para.SetDamage: HP floors at zero, never negative.</summary>
     public static void Apply(BattleUnit target, Int32 damage)
         => target.CurrentHP = target.CurrentHP > damage ? target.CurrentHP - damage : 0;
+
+    public static void Apply(BattleUnit target, AttackResult result)
+    {
+        if (result.Outcome == AttackOutcome.Absorbed)
+            target.CurrentHP = Math.Min(target.MaxHP, target.CurrentHP + result.Damage);
+        else
+            Apply(target, result.Damage);
+    }
 }
 
 public sealed record AttackResult(AttackOutcome Outcome, Int32 Damage);

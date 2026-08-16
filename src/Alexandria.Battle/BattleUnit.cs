@@ -36,6 +36,13 @@ public sealed class BattleUnit
     public Int32 ATBMax => (60 - Speed) * 40;
 
     public Boolean ATBReady => ATBGauge >= ATBMax;
+    
+    public Element GuardElements { get; set; }
+    public Element AbsorbElements { get; set; }
+    public Element HalfElements { get; set; }
+    public Element WeakElements { get; set; }
+    public Element BonusElements { get; set; }   // Elem-Atk boost gear (p_up_attr)
+    public Element WeaponElement { get; set; }   // damage element of the equipped weapon
 
     public static BattleUnit FromEnemy(String name, BattleSceneMonsterParam m) => new()
     {
@@ -52,7 +59,11 @@ public sealed class BattleUnit
         PhysicalDefense = m.PDefense,
         PhysicalEvade = m.PEvade,
         MagicalDefense = m.MDefense,
-        MagicalEvade = m.MEvade
+        MagicalEvade = m.MEvade,
+        GuardElements = (Element)m.GuardElement,
+        AbsorbElements = (Element)m.AbsorbElement,
+        HalfElements = (Element)m.HalfElement,
+        WeakElements = (Element)m.WeakElement
     };
 
     public Boolean Has(BattleStatus status) => (Statuses & status) != 0;
