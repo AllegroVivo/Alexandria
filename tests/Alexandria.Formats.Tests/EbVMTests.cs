@@ -11,6 +11,8 @@ public class EbVMTests
         public void SetSysList(Int32 slot, Int32 value) => throw new NotSupportedException();
         public Int32 ReadStat(Int32 mask, Int32 stat) => throw new NotSupportedException();
         public Int32 RandomBit(Int32 mask) => throw new NotSupportedException();
+        public void Attack(Int32 attackId) => throw new NotSupportedException();
+        public void WriteStat(Int32 mask, Int32 stat, Int32 value) => throw new NotSupportedException();
     }
 
     private static EbVM TypeC(params Int32[] rolls)

@@ -1,5 +1,3 @@
-using Microsoft.VisualBasic.CompilerServices;
-
 namespace Alexandria.Formats.Scripts;
 
 /// <summary>
@@ -19,10 +17,12 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
 
     private const Int32 Int26Tag = 7 << 26;
 
-    /// <summary>Read a Byte instance var — counters and flags use single-byte cells.</summary>
+    private Int32 _memberTarget = -1;
+
+    /// <summary>Read a Byte instance var - counters and flags use single-byte cells.</summary>
     public Int32 Var8(Int32 offset) => _vars[offset];
      
-    /// <summary>Read an Int24 instance var — the test window into VM state.</summary>
+    /// <summary>Read an Int24 instance var - the test window into VM state.</summary>
     public Int32 Var24(Int32 offset)
         => _vars[offset] | _vars[offset + 1] << 8 | (SByte)_vars[offset + 2] << 16;
 
@@ -79,6 +79,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     return;
                 
                 case 0x05:
+                    _calc.Clear(); // mirror: expr() empties the calc stack at every statement start
                     RunExpression(code, ref pos);
                     break;
 
@@ -119,6 +120,34 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                             target = offset;
                     }
                     pos = basePos + target;
+                    break;
+                }
+
+                case 0x22: // WAIT: park N frames and yield — a run-to-completion call treats them as elapsed
+                {
+                    var flag = code[pos++];
+                    if ((flag & 1) != 0)
+                    {
+                        RunExpression(code, ref pos);
+                        Pop();
+                    }
+                    else
+                        pos++;
+                    break;
+                }
+
+                case 0x38: // BTLCMD: the script acts
+                {
+                    var flag = code[pos++];
+                    Int32 attackId;
+                    if ((flag & 1) != 0)
+                    {
+                        RunExpression(code, ref pos);
+                        attackId = Evaluate(Pop());
+                    }
+                    else
+                        attackId = code[pos++];
+                    host.Attack(attackId);
                     break;
                 }
                     
@@ -169,13 +198,48 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 PushValue(op is 6 or 7 ? updated : current);
                 break;
             }
+
+            case 8 or 9 or 10 or 11: // ++/-- a stat of every unit in a mask (OperatorAll1)
+            {
+                var (statId, mask) = PopMemberOperands();
+                var result = 0;
+                for (var line = 0; line < 8; line++)
+                {
+                    if ((mask >> line & 1) == 0)
+                        continue;
+                    _memberTarget = line;
+                    var current = host.ReadStat(1 << line, statId);
+                    var written = op is 8 or 10 ? current + 1 : current - 1;
+                    host.WriteStat(1 << line, statId, written);
+                    result = op is 8 or 9 ? current : written;
+                }
+                PushValue(result);
+                break;
+            }
             
             case 12: PushValue(+Evaluate(Pop())); break;
             case 13: PushValue(-Evaluate(Pop())); break;
             case 14: PushValue(+Evaluate(Pop()) == 0 ? 1 : 0); break;
+
+            case 15: // B_NOT_E: the mask of units whose stat is zero (OperatorExtract1)
+            {
+                var (statId, mask) = PopMemberOperands();
+                var result = 0;
+                for (var line = 0; line < 8; line++)
+                {
+                    if ((mask >> line & 1) == 0)
+                        continue;
+                    _memberTarget = line;
+                    if (host.ReadStat(1 << line, statId) == 0)
+                        result |= 1 << line;
+                }
+                PushValue(result);
+                break;
+            }
+            
             case 16: PushValue(~Evaluate(Pop())); break;
 
-            case >= 17 and <= 40 and not 28 and not 29 and not 20 and not 31 and not 34 and not 35: // plain binary ops (no _E variants)
+            case >= 17 and <= 40 and not 28 and not 29 and not 30 and not 31 and not 34 and not 35: // plain binary ops (no _E variants)
             {
                 var right = Evaluate(Pop());
                 var left = Evaluate(Pop());
@@ -194,14 +258,84 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 });
                 break;
             }
+
+            case 28 or 29 or 30 or 31 or 34 or 35 or 84 or 85 or 86 or 87: // _E: compare across a mask
+            {
+                var cmp = Evaluate(Pop());
+                var (statId, mask) = PopMemberOperands();
+                var result = 0;
+                for (var line = 0; line < 8; line++)
+                {
+                    if ((mask >> line & 1) == 0)
+                        continue;
+                    _memberTarget = line;
+                    var v = host.ReadStat(1 << line, statId);
+                    var hit = op switch
+                    {
+                        28 => v < cmp, 29 => v > cmp, 30 => v <= cmp, 31 => v >= cmp,
+                        34 => v == cmp, 35 => v != cmp,
+                        84 => (v & cmp) != 0, 85 => (v & cmp) == 0,
+                        86 => (v ^ cmp) != 0, _ => (v | cmp) != 0
+                    };
+                    if (hit)
+                        result |= 1 << line;
+                }
+                PushValue(result);
+                break;
+            }
+            
+            case 41: // B_MEMBER: push a stat reference
+                Push(6 << 26 | code[pos++]);
+                break;
             
             case 42: PushValue(Int32.PopCount(Evaluate(Pop())) is var n ? n : n); break;
 
+            case 43: // B_PICK: the stat of the LOWEST unit in a mask (mirror: OperatorPick)
+            {
+                var (statId, mask) = PopMemberOperands();
+                var line = LowestBit(mask);
+                if (line < 0)
+                {
+                    PushValue(0);
+                    break;
+                }
+                _memberTarget = line;
+                PushValue(host.ReadStat(1 << line, statId));
+                break;
+            }
+            
             case 44: // B_LET: value stays on the stack
             {
                 var value = Evaluate(Pop());
                 WriteThrough(Pop(), value);
                 PushValue(value);
+                break;
+            }
+
+            case 45 or (>= 54 and <= 60) or 64 or 65 or 66: // _A: assign to every unit (OperatorAll)
+            {
+                var value = Evaluate(Pop());
+                var (statId, mask) = PopMemberOperands();
+                var result = 0;
+                for (var line = 0; line < 8; line++)
+                {
+                    if ((mask >> line & 1) == 0)
+                        continue;
+                    _memberTarget = line;
+                    var current = op == 45 ? 0 : host.ReadStat(1 << line, statId);
+                    result = op switch
+                    {
+                        45 => value,
+                        54 => current * value,
+                        55 => value == 0 ? current : current / value,
+                        56 => value == 0 ? current : current % value,
+                        57 => current + value, 58 => current - value,
+                        59 => current << value, 60 => current >> value,
+                        64 => current & value, 65 => current ^ value, _ => current | value
+                    };
+                    host.WriteStat(1 << line, statId, result);
+                }
+                PushValue(result);
                 break;
             }
 
@@ -223,23 +357,55 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 PushValue(result);
                 break;
             }
+
+            case 46 or 67 or 68 or 69: // _E extract-assign: dest gets a truthiness mask (OperatorExtractLet)
+            {
+                var (statId, mask) = PopMemberOperands();
+                var result = 0;
+                for (var line = 0; line < 8; line++)
+                {
+                    if ((mask >> line & 1) == 0)
+                        continue;
+                    _memberTarget = line;
+                    if (host.ReadStat(1 << line, statId) != 0)
+                        result |= 1 << line;
+                }
+                var dest = Pop();
+                result = op switch
+                {
+                    67 => Evaluate(dest) & result,
+                    68 => Evaluate(dest) ^ result,
+                    69 => Evaluate(dest) | result,
+                    _ => result
+                };
+                WriteThrough(dest, result);
+                PushValue(result);
+                break;
+            }
             
             case 70: PushValue((SByte)Evaluate(Pop())); break;
             case 71: PushValue((Byte)Evaluate(Pop())); break;
             case 72: PushValue((Int16)Evaluate(Pop())); break;
             case 73: PushValue((UInt16)Evaluate(Pop())); break;
 
-            case 75:
+            case 75 or 76: // B_LMAX/B_LMIN: 1 << line of the best unit (mirror: OperatorExtract1)
             {
-                var b = Evaluate(Pop());
-                PushValue(Math.Max(Evaluate(Pop()), b));
-                break;
-            }
-
-            case 76:
-            {
-                var b = Evaluate(Pop());
-                PushValue(Math.Min(Evaluate(Pop()), b));
+                var (statId, mask) = PopMemberOperands();
+                var best = op == 75 ? (Int32)Int16.MinValue : Int16.MaxValue;
+                var bestLine = 0;
+                for (var line = 0; line < 8; line++)
+                {
+                    if ((mask >> line & 1) == 0)
+                        continue;
+                    _memberTarget = line;
+                    var v = host.ReadStat(1 << line, statId);
+                    if (op == 75 ? best < v : best > v)
+                    {
+                        best = v;
+                        bestLine = line;
+                    }
+                }
+                PushValue(1 << bestLine);
                 break;
             }
             
@@ -271,18 +437,50 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
     private Int32 Peek() => _calc.Peek();
     private void PushValue(Int32 value) => _calc.Push((value & 0x3FFFFFF) | Int26Tag);
 
+    private Int32 MemberLine() => _memberTarget >= 0
+        ? _memberTarget
+        : throw new InvalidOperationException("bare stat cell before any PICK/_E/_A set the member target");
+
+    /// <summary>The operand pair under every member-set operator: the stat cell on
+    /// top, the unit mask beneath (a SysList cell reads live, anything else was
+    /// computed). Vanilla peeks the mask in place and re-pops the stat cell once
+    /// per unit; popping both once and reusing them is the same dance flattened.</summary>
+    private (Int32 StatID, Int32 Mask) PopMemberOperands()
+    {
+        var member = Pop();
+        if ((member >> 26 & 7) != 6)
+            throw new NotSupportedException($"member-set operand source {(member >> 26) & 7} — teach me");
+        var mask = Evaluate(Pop()) & 0xFF;
+        return (member & 0xFF, mask);
+    }
+
+    private static Int32 LowestBit(Int32 mask)
+    {
+        for (var line = 0; line < 8; line++)
+            if ((mask >> line & 1) != 0)
+                return line;
+        return -1;
+    }
+
     private Int32 Evaluate(Int32 cell) => ((cell >> 26) & 7) switch
     {
         0 => Read(_global, cell),
         1 => Read(_map, cell),
         2 => Read(_vars, cell),
         5 => host.SysList(cell & 0xFF),
+        6 => host.ReadStat(1 << MemberLine(), cell & 0xFF),
         7 => (cell << 6) >> 6, // Int26, sign-extended
         var source => throw new NotSupportedException($"variable source {source} — teach me")
     };
 
     private void WriteThrough(Int32 cell, Int32 value)
     {
+        if (((cell >> 26) & 7) == 6) // bare stat write: whichever unit the last loop touched
+        {
+            host.WriteStat(1 << MemberLine(), cell & 0xFF, value);
+            return;
+        }
+        
         Byte[]? pool = ((cell >> 26) & 7) switch
         {
             0 => _global, 1 => _map, 2 => _vars,

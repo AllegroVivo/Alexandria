@@ -2,6 +2,7 @@ using Alexandria.Battle;
 using Alexandria.Formats.Memoria;
 using Alexandria.Formats.Scenes.BattleScene;
 using Alexandria.Rules;
+using Alexandria.Formats.Scripts;
 
 namespace ff9tool;
 
@@ -37,7 +38,6 @@ public static class BattleCommand
                         a.ScriptID, a.Power, (Element)a.Elements, a.Rate,
                         db.StatusSets[a.AddStatusNo].StatusMask, a.MP, n);
                 }));
-                unit.Brain = EnemyBrains.For(names[i].DisplayName, rng);
                 return unit;
             })
             .ToList();
@@ -49,6 +49,14 @@ public static class BattleCommand
             BuildCharacter(db, "Steiner", level),
             BuildCharacter(db, "Vivi", level)
         };
+        var host = new EngineHost(party, enemies, rng);
+        using (var eb = new BinaryReader(File.OpenRead(
+                   Path.Combine(sceneDir, Path.GetFileName(sceneDir) + ".eb"))))
+        {
+            var script = EbScript.Read(eb);
+            for (var i = 0; i < enemies.Count; i++)
+                enemies[i].Brain = new ScriptedBrain(script.Entries[i + 1], host, selfLine: 4 + i);
+        }
         var spellbook = party.ToDictionary(
             p => p.Name,
             p => Spellbook.For(db, p.Name,
@@ -57,10 +65,12 @@ public static class BattleCommand
 
         Console.WriteLine($"— {String.Join(" and ", enemies.Select(e => e.Name))} appeared! —");
 
-        var statusTable = db.StatusData.Values.ToDictionary(
-            s => (BattleStatus)(1u << s.Bit),
-            s => new StatusTiming(s.OprCount, s.ContiCount, 
-                (BattleStatus)s.ClearOnApply, (BattleStatus)s.ImmunityProvided));
+        var statusTable = db.StatusData.Values
+            .Where(s => s.Bit < 32)
+            .ToDictionary(
+                s => (BattleStatus)(1u << s.Bit),
+                s => new StatusTiming(s.OprCount, s.ContiCount,
+                    (BattleStatus)s.ClearOnApply, (BattleStatus)s.ImmunityProvided));
 
         var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng, statusTable: statusTable);
         while (engine.TickUntilReady() is { } ready)

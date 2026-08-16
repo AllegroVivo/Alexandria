@@ -18,7 +18,7 @@ public class MemoriaJsonParser
     {
         var json = FixMissingCommas(File.ReadAllText(path));
         var dto = JsonSerializer.Deserialize<ScriptsDto>(json, Options);
-        return dto.SequenceProperty.ToDictionary(
+        return dto!.SequenceProperty.ToDictionary(
             p => p.Montype,
             p => (IReadOnlyList<Int32>)p.PlayableSequence);
     }
