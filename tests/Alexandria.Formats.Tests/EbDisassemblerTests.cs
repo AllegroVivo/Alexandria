@@ -46,4 +46,27 @@ public class EbDisassemblerTests
 
         Assert.Contains(lines, l => l.Contains("HP") && l.Contains("10000"));
     }
+    
+    [Fact]
+    public void Attack_constants_render_with_their_seq_names()
+    {
+        using var reader = new BinaryReader(File.OpenRead(
+            Path.Combine(SceneRoot, "EVT_BATTLE_CH_E093", "EVT_BATTLE_CH_E093.eb")));
+        var counter = EbScript.Read(reader).Entries[1].Functions.Single(f => f.Tag == 6);
+
+        var lines = EbDisassembler.Disassemble(counter,
+            new Dictionary<Int32, String> { [9] = "Curaga", [14] = "Berserk" });
+
+        Assert.Contains(lines, l => l.Contains("Attack(9 \"Curaga\")"));
+        Assert.Contains(lines, l => l.Contains("Attack(14 \"Berserk\")"));
+    }
+    
+    [Fact]
+    public void Ozmas_battle_text_names_and_quest_line()
+    {
+        var text = BattleText.Load(@"C:\Dev\Memoria\FF9Data\Text\Battle\211.mes");
+        Assert.Equal("Ozma", text[0]);
+        Assert.Equal("Curaga", text[10]);   // 1 enemy name + attack index 9
+        Assert.Equal("The spiritual power raised the attack range.", text[16]);
+    }
 }

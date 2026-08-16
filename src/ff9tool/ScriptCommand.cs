@@ -6,7 +6,8 @@ namespace ff9tool;
 
 public static class ScriptCommand
 {
-    private const String SceneRoot = @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene";
+    private const String DataRoot = @"C:\Dev\Memoria\FF9Data";
+    private const String SceneRoot = DataRoot + @"\BattleMap\BattleScene";
 
     public static void Run(String[] args)
     {
@@ -73,13 +74,23 @@ public static class ScriptCommand
 
     private static void DisassembleEntry(String sceneName, Int32 entryIndex)
     {
+        var sceneDir = Path.Combine(SceneRoot, sceneName);
+        var attackNames = Directory.EnumerateFiles(sceneDir, "*.seq")
+            .Select(f => Path.GetFileNameWithoutExtension(f))
+            .ToDictionary(s => Int32.Parse(s[..2]), s => s[3..]);
+
+        var sceneIDs = SceneIDs.Load(Path.Combine(DataRoot, "SceneData.csv"));
+        var mesPath = Path.Combine(DataRoot, @"Text\Battle",
+            sceneIDs[sceneName["EVT_BATTLE_".Length..]] + ".mes");
+        var battleText = File.Exists(mesPath) ? BattleText.Load(mesPath) : null;
+        
         using var reader = new BinaryReader(
-            File.OpenRead(Path.Combine(SceneRoot, sceneName, sceneName + ".eb")));
+            File.OpenRead(Path.Combine(sceneDir, sceneName + ".eb")));
         var entry = EbScript.Read(reader).Entries[entryIndex];
         foreach (var fn in entry.Functions)
         {
             Console.WriteLine($"-- {fn.TagName} ({fn.Code.Length} bytes) --");
-            foreach (var line in EbDisassembler.Disassemble(fn))
+            foreach (var line in EbDisassembler.Disassemble(fn, attackNames, battleText))
                 Console.WriteLine("  " + line);
             Console.WriteLine();
         }

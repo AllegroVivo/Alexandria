@@ -24,9 +24,14 @@ public static class EbDisassembler
         [0xEC] = ("FadeFilter", [1, 1, 1, 1, 1, 1]),
     };
 
-    public static List<String> Disassemble(EbFunction fn) => Disassemble(fn, out _);
+    public static List<String> Disassemble(EbFunction fn,
+        IReadOnlyDictionary<Int32, String>? attackNames = null,
+        IReadOnlyList<String>? battleText = null)
+        => Disassemble(fn, out _, attackNames, battleText);
 
-    public static List<String> Disassemble(EbFunction fn, out Int32? blockedOpcode)
+    public static List<String> Disassemble(EbFunction fn, out Int32? blockedOpcode,
+        IReadOnlyDictionary<Int32, String>? attackNames = null,
+        IReadOnlyList<String>? battleText = null)
     {
         blockedOpcode = null;
         var lines = new List<String>();
@@ -164,6 +169,17 @@ public static class EbDisassembler
                         }
                         flag >>= 1;
                     }
+
+                    if (attackNames is not null && op is 0x38 or 0xE5
+                                                && Int32.TryParse(args[0], out var atk)
+                                                && attackNames.TryGetValue(atk, out var atkName))
+                        args[0] = $"{args[0]} \"{atkName}\"";
+                    
+                    if (op == 0xD0 && battleText is not null
+                                   && Int32.TryParse(args[0], out var mes)
+                                   && mes < battleText.Count)
+                        args[0] = $"{args[0]} \"{battleText[mes]}\"";
+                    
                     lines.Add($"@{at:D4}: {sig.Name}({String.Join(", ", args)})");
                     break;
                 }
