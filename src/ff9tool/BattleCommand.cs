@@ -23,13 +23,13 @@ public static class BattleCommand
         var attackNames = Directory.EnumerateFiles(sceneDir, "*.seq")
             .Select(f => Path.GetFileNameWithoutExtension(f))
             .ToDictionary(s => Int32.Parse(s[..2]), s => s[3..]);
-        
+
         var enemies = scene.Monsters
             .Select((m, i) =>
             {
                 var unit = BattleUnit.FromEnemy(names[i].DisplayName, m);
                 unit.AttackPower = scene.Attacks[names[i].DefaultAttack].Power;
-                unit.Attacks.AddRange(rosters[i].Select(n =>
+                unit.Attacks.AddRange(rosters[i].Where(n => n < scene.Attacks.Count).Select(n =>
                 {
                     var a = scene.Attacks[n];
                     return new EnemyAttack(
@@ -51,29 +51,36 @@ public static class BattleCommand
         };
         var spellbook = party.ToDictionary(
             p => p.Name,
-            p => Spellbook.For(db, p.Name).Where(s => s.ScriptID is 9 or 11).ToList());
-        
+            p => Spellbook.For(db, p.Name,
+                    APEarned.LearnedActives(db.Learnables.GetValueOrDefault(p.Name, []), p.Level))
+                .Where(s => s.ScriptID is 9 or 11).ToList());
+
         Console.WriteLine($"— {String.Join(" and ", enemies.Select(e => e.Name))} appeared! —");
 
-        var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng);
+        var statusTable = db.StatusData.Values.ToDictionary(
+            s => (BattleStatus)(1u << s.Bit),
+            s => new StatusTiming(s.OprCount, s.ContiCount, 
+                (BattleStatus)s.ClearOnApply, (BattleStatus)s.ImmunityProvided));
+
+        var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng, statusTable: statusTable);
         while (engine.TickUntilReady() is { } ready)
         {
             NarrateTicks(engine);
-            
+
             if (engine.IsEnemy(ready))
                 Narrate(engine.ExecuteEnemyTurn(ready));
             else
                 Narrate(TakePlayerTurn(db, engine, ready, spellbook));
         }
         NarrateTicks(engine);
-        
+
         Console.WriteLine(engine.Victory ? "\n*** VICTORY! ***" : "\n*** The party has fallen... ***");
     }
 
     private static BattleUnit BuildCharacter(RulesDB db, String name, Int32 level)
     {
         var baseStats = db.BaseStats.First(c => c.Name == name);
-        var kit = EquipmentKit.Resolve(db.DefaultEquipment.First(e => e.Name == name), 
+        var kit = EquipmentKit.Resolve(db.DefaultEquipment.First(e => e.Name == name),
             db.Items, db.Weapons, db.Armors, db.GrowthStats);
         var grown = GrowthSimulator.LevelUpTo(level, GrowthBonuses.None, kit.GrowthPerLevel);
         var sheet = StatGrowth.AtLevel(baseStats, db.Leveling, level, grown);
@@ -96,9 +103,9 @@ public static class BattleCommand
 
     private static void Narrate(BattleEvent e)
     {
-        if(e.Attack is not null)
+        if (e.Attack is not null)
             Console.WriteLine($"{e.Actor.Name} {(e.Attack.ScriptID == 9 ? "casts" : "uses")} {e.Attack.Name}!");
-        
+
         var line = e.Result.Outcome switch
         {
             AttackOutcome.Miss => $"{e.Actor.Name}'s attack misses {e.Target.Name}!",
@@ -146,7 +153,7 @@ public static class BattleCommand
             {
                 for (var i = 0; i < castable.Count; i++)
                     Console.WriteLine($"  [{i + 1}] {castable[i].Name}  (MP {castable[i].MP})");
-                
+
                 var spell = Prompt(castable, s => s.Name, $"{actor.Name} casts which spell? ");
 
                 var target = PromptEnemy(engine, $"On which target? ");
@@ -167,7 +174,7 @@ public static class BattleCommand
         while (true)
         {
             Console.Write(question);
-            if (Int32.TryParse(Console.ReadLine(), out var pick) && pick >= 1 && pick <= options.Count)             
+            if (Int32.TryParse(Console.ReadLine(), out var pick) && pick >= 1 && pick <= options.Count)
                 return options[pick - 1];
         }
     }
@@ -180,4 +187,3 @@ public static class BattleCommand
         return Prompt(living, e => e.Name, question);
     }
 }
-

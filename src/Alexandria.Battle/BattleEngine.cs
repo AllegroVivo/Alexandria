@@ -10,6 +10,7 @@ public sealed class BattleEngine
 {
     private readonly Random _rng;
     private readonly Int32 _coefficient;
+    private IReadOnlyDictionary<BattleStatus, StatusTiming> _statusTable;
     
     public IReadOnlyList<BattleUnit> Players { get; }
     public IReadOnlyList<BattleUnit> Enemies { get; }
@@ -17,12 +18,14 @@ public sealed class BattleEngine
     public List<StatusTickEvent> PendingStatusEvents { get; } = [];
 
     public BattleEngine(IReadOnlyList<BattleUnit> players, IReadOnlyList<BattleUnit> enemies,
-        EncounterKind kind, Random rng, Int32 coefficient = ATBClock.NormalCoefficient)
+        EncounterKind kind, Random rng, Int32 coefficient = ATBClock.NormalCoefficient,
+        IReadOnlyDictionary<BattleStatus, StatusTiming>? statusTable = null)
     {
         Players = players;
         Enemies = enemies;
         _rng = rng;
         _coefficient = coefficient;
+        _statusTable = statusTable ?? StatusTicker.DefaultTable;
         ATBClock.PlaceInitialGauges(players, enemies, kind, rng);
     }
 
@@ -45,7 +48,7 @@ public sealed class BattleEngine
             foreach (var unit in AllUnits)
             {
                 ATBClock.Tick(unit, _coefficient);
-                PendingStatusEvents.AddRange(StatusTicker.Tick(unit, _coefficient));
+                PendingStatusEvents.AddRange(StatusTicker.Tick(unit, _coefficient, _statusTable));
             }
         }
         return null;
@@ -62,7 +65,7 @@ public sealed class BattleEngine
             enemyStyle: IsEnemy(attacker), element: element ?? attacker.WeaponElement);
         PhysicalAttack.Apply(target, result);
         if (result.Damage > 0 && target.Has(BattleStatus.Sleep))
-            target.Statuses &= ~BattleStatus.Sleep;
+            StatusApplication.Remove(target, BattleStatus.Sleep);
         ATBClock.ResetAfterAction(attacker);
         return new BattleEvent(attacker, target, result);
     }
@@ -75,7 +78,8 @@ public sealed class BattleEngine
         caster.CurrentMP -= mpCost;
         var result = MagicAttack.Execute(caster, target, spellPower, _rng, element: element);
         var added = result.Outcome is AttackOutcome.Hit or AttackOutcome.Absorbed
-            ? MagicAttack.TryRiderStatuses(target, riderStatuses, riderRate, _rng)
+                    && riderStatuses != 0 && riderRate > _rng.Rand16() % 100
+            ? StatusApplication.Apply(target, (BattleStatus)riderStatuses, _statusTable)
             : 0;
         PhysicalAttack.Apply(target, result);
         ATBClock.ResetAfterAction(caster);
@@ -97,19 +101,19 @@ public sealed class BattleEngine
             hitRate /= 2;
 
         AttackResult result;
+        BattleStatus landed = 0;
         if (hitRate <= _rng.Rand16() % 100)
             result = new AttackResult(AttackOutcome.Miss, 0);
         else if (target.MagicalEvade > _rng.Rand16() % 100)
             result = new AttackResult(AttackOutcome.Evaded, 0);
         else
         {
-            target.Statuses |= (BattleStatus)statusMask;
+            landed = StatusApplication.Apply(target, (BattleStatus)statusMask, _statusTable);
             result = new AttackResult(AttackOutcome.Hit, 0);
         }
 
         ATBClock.ResetAfterAction(caster);
-        return new BattleEvent(caster, target, result,
-            result.Outcome == AttackOutcome.Hit ? (BattleStatus)statusMask : 0);
+        return new BattleEvent(caster, target, result, landed);
     }
 
     /// <summary>Enemy turn. Target: uniform among living players (mirror: the B_SELECT

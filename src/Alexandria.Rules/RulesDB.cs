@@ -10,7 +10,8 @@ public sealed record RulesDB(
     IReadOnlyList<DefaultEquipmentSet> DefaultEquipment,
     IReadOnlyDictionary<Int32, BattleAction> Actions,
     IReadOnlyDictionary<Int32, StatusSet> StatusSets,
-    IReadOnlyDictionary<String, IReadOnlyList<LearnableAbility>> Learnables)
+    IReadOnlyDictionary<String, IReadOnlyList<LearnableAbility>> Learnables,
+    IReadOnlyDictionary<Int32, StatusEntry> StatusData)
 {
     public static RulesDB Load(String dataRoot)
     {
@@ -25,7 +26,7 @@ public sealed record RulesDB(
                     : Array.Empty<LearnableAbility>();
             });
         return new RulesDB(
-            baseStats, 
+            baseStats,
             LevelingTable.Load(Path.Combine(dataRoot, @"Characters\Leveling.csv")),
             Item.Load(Path.Combine(dataRoot, @"Items\Items.csv")),
             Weapon.Load(Path.Combine(dataRoot, @"Items\Weapons.csv")),
@@ -34,7 +35,8 @@ public sealed record RulesDB(
             DefaultEquipmentSet.Load(Path.Combine(dataRoot, @"Characters\DefaultEquipment.csv")),
             BattleAction.Load(Path.Combine(dataRoot, @"Battle\Actions.csv")),
             StatusSet.Load(Path.Combine(dataRoot, @"Battle\StatusSets.csv")),
-            learnables);
+            learnables,
+            StatusEntry.Load(Path.Combine(dataRoot, @"Battle\StatusData.csv")));
     }
 }
 

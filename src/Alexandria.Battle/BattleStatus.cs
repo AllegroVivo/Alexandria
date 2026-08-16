@@ -38,6 +38,13 @@ public enum BattleStatus : UInt32
     
     // curated groups (mirror: BattleStatusConst in Memoria's BattleStatus.cs)
     PreventATBConfirm = Venom | Sleep | Freeze,
-    CannotAct = Petrify | Venom | Stop | Freeze
+    CannotAct = Petrify | Venom | Stop | Freeze,
+    
+    // mirror: BattleStatusConst.AnyPositive / AnyNegative (BattleStatus.cs:119-120)
+    AnyPositive = AutoLife | Trance | Defend | Regen | Haste | Float | Shell 
+                  | Protect | Vanish | Reflect,
+    AnyNegative = Petrify | Venom | Virus | Silence | Blind | Trouble | Zombie 
+                  | Death | Confuse | Stop | Poison | Sleep | Slow | Heat | Freeze 
+                  | Doom | Mini | GradualPetrify
 }
 
