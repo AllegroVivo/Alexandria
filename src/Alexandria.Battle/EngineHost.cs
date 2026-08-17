@@ -10,6 +10,9 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
 {
     private readonly UInt16[] _sysList = new UInt16[8];
 
+    /// <summary>Text ids queued by MESB (0xD0); the runner drains and prints them.</summary>
+    public readonly List<Int32> PendingDialogs = [];
+    
     /// <summary>The attack id the last BTLCMD chose; ScriptedBrain resets and reads it.</summary>
     public Int32? ChosenAttack;
 
@@ -31,9 +34,14 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
 
     public Int32 Random8() => rng.Rand8();
 
-    public Int32 Sysvar(Int32 id) => id == 0
-        ? Random8()
-        : throw new NotSupportedException($"sysvar {id} — teach me");
+    public Int32 Sysvar(Int32 id) => id switch
+    {
+        0 => Random8(),
+        25 => 0, // SeqBusy: headless runs no animation sequences
+        30 => 4, // BattlePhase: the in-battle phase every wait-loop waits for
+        36 => -1, // Attacker: GetBattleData returns UInt32.MaxValue → -1 when no command is in flight
+        _ => throw new NotSupportedException($"sysvar {id} — teach me")
+    };
 
     public Int32 SysList(Int32 slot) => slot switch
     {
@@ -45,10 +53,13 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
 
     public void SetSysList(Int32 slot, Int32 value) => _sysList[slot] = (UInt16)value;
 
+    public void BattleDialog(Int32 textId) => PendingDialogs.Add(textId);
+
     public Int32 ReadStat(Int32 mask, Int32 statId)
     {
-        var unit = UnitFromMask(mask)
-                   ?? throw new InvalidOperationException($"stat {statId} read from empty mask");
+        var unit = UnitFromMask(mask);
+        if (unit is null)
+            return 0;
         return statId switch
         {
             35 => unit.MaxHP,
@@ -58,29 +69,83 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
             39 => unit.ATBMax,
             40 => unit.ATBGauge,
             41 => unit.Level,
-            46 => (Int32)unit.Statuses >>> 24,                    // STATUS_CURRENT_B: high 8
-            47 => (Int32)((UInt32)unit.Statuses & 0xFFFFFF),      // STATUS_CURRENT_A: low 24
+            42 => (Int32)unit.ImmuneStatuses >>> 24,               // STATUS_IMMUNE_B
+            43 => (Int32)((UInt32)unit.ImmuneStatuses & 0xFFFFFF), // STATUS_IMMUNE_A
+            44 => (Int32)unit.PermanentStatuses >>> 24,            // STATUS_AUTO_B
+            45 => (Int32)((UInt32)unit.PermanentStatuses & 0xFFFFFF),
+            46 => (Int32)unit.Statuses >>> 24,                     // STATUS_CURRENT_B
+            47 => (Int32)((UInt32)unit.Statuses & 0xFFFFFF),
             48 => (Int32)unit.GuardElements,
             49 => (Int32)unit.AbsorbElements,
             50 => (Int32)unit.HalfElements,
             51 => (Int32)unit.WeakElements,
+            64 => unit.Row,
+            65 => Int32.TrailingZeroCount(mask),                   // COLUMN = bi.line_no = the line itself
+            66 => unit.ModelType,
+            67 or 68 => unit.Category,   // vanilla: 67 player-side, 68 enemy-side — one field serves both
+            69 => unit.StandAnimation,
+            72 => unit.Strength,
+            73 => unit.Magic,
+            74 => unit.PhysicalDefense,
+            75 => unit.PhysicalEvade,
+            76 => unit.MagicalDefense,
+            77 => unit.MagicalEvade,
+            // write-only verbs read back as vanilla's no-case default (btl_scrp.cs:197)
+            32 or 33 or 34 or (>= 54 and <= 56) or (>= 59 and <= 63) or 71 or 78 => 0xFFFFFF,
             _ => throw new NotSupportedException($"stat {statId} — teach me")
         };
     }
 
     public void WriteStat(Int32 mask, Int32 statId, Int32 value)
     {
-        var unit = UnitFromMask(mask)
-                   ?? throw new InvalidOperationException($"stat {statId} write to empty mask");
+        var unit = UnitFromMask(mask);
+        if (unit is null)
+            return;
         switch (statId)
         {
-            case 36: unit.CurrentHP = value; break;
-            case 38: unit.CurrentMP = value; break;
-            case 40: unit.ATBGauge = value; break;
-            case 46: unit.Statuses = (BattleStatus)((UInt32)unit.Statuses & 0xFFFFFF | (UInt32)value << 24); break;
-            case 47: unit.Statuses = (BattleStatus)((UInt32)unit.Statuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
-            default: throw new NotSupportedException($"stat {statId} write — teach me");
+        case 35: unit.MaxHP = value; break;
+        case 36: unit.CurrentHP = value; break;
+        case 37: unit.MaxMP = value; break;
+        case 38: unit.CurrentMP = value; break;
+        case 40: unit.ATBGauge = value; break; // vanilla adds an Ozma speed-config guard here
+        case 42: unit.ImmuneStatuses = (BattleStatus)((UInt32)unit.ImmuneStatuses & 0xFFFFFF | (UInt32)value << 24); break;
+        case 43: unit.ImmuneStatuses = (BattleStatus)((UInt32)unit.ImmuneStatuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
+        case 44: SetPermanent(unit, (UInt32)unit.PermanentStatuses & 0xFFFFFF | (UInt32)value << 24); break;
+        case 45: SetPermanent(unit, (UInt32)unit.PermanentStatuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
+        case 46: unit.Statuses = (BattleStatus)((UInt32)unit.Statuses & 0xFFFFFF | (UInt32)value << 24); break;
+        case 47: unit.Statuses = (BattleStatus)((UInt32)unit.Statuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
+        case 48: unit.GuardElements = (Element)value; break;
+        case 49: unit.AbsorbElements = (Element)value; break;
+        case 50: unit.HalfElements = (Element)value; break;
+        case 51: unit.WeakElements = (Element)value; break;
+        case 69: unit.StandAnimation = value; break; // plain store, no side call — vanilla applies it at the next idle
+        case 72: unit.Strength = value; break;
+        case 73: unit.Magic = value; break;
+        case 74: unit.PhysicalDefense = value; break;
+        case 75: unit.PhysicalEvade = value; break;
+        case 76: unit.MagicalDefense = value; break;
+        case 77: unit.MagicalEvade = value; break;
+        // rendering & roster verbs a headless sim honors as no-ops (vanilla intent in comments):
+        case 32 or 33: break;         // show/hide unit + add/remove from roster (btl_sys)
+        case 34: break;               // KillStandardCommands — the sim queues no commands
+        case 52 or 53: break;         // tar_mode request / SetDisappear — no targeting model yet
+        case 54: break;               // shadow toggle
+        case 55 or 56: break;         // model scale set/reset (the tag-7 Mini handlers)
+        case >= 59 and <= 63: break;  // mesh hide/show, texture anims
+        case 71: break;               // SetBonus — reward banking not modeled
+        default: throw new NotSupportedException($"stat {statId} write — teach me");
         }
+    }
+
+    /// <summary>Mirror-lite of btl_stat.MakeStatusesPermanent: the write diffs the
+    /// mask — what fell off is removed (from current too), what came on is inflicted.
+    /// The full AlterStatus immunity/opposite machinery is a future fidelity bite.</summary>
+    private static void SetPermanent(BattleUnit unit, UInt32 mask)
+    {
+        var target = (BattleStatus)mask;
+        var removed = unit.PermanentStatuses & ~target;
+        unit.PermanentStatuses = target;
+        unit.Statuses = (unit.Statuses & ~removed) | target;
     }
 
     public Int32 RandomBit(Int32 mask) // mirror: OperatorSelect

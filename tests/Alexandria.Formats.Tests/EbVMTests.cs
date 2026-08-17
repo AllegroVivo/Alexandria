@@ -12,6 +12,7 @@ public class EbVMTests
         public Int32 ReadStat(Int32 mask, Int32 stat) => throw new NotSupportedException();
         public Int32 RandomBit(Int32 mask) => throw new NotSupportedException();
         public void Attack(Int32 attackId) => throw new NotSupportedException();
+        public void BattleDialog(Int32 textId) => throw new NotImplementedException();
         public void WriteStat(Int32 mask, Int32 stat, Int32 value) => throw new NotSupportedException();
     }
 

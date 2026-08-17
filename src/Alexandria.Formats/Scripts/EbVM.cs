@@ -150,6 +150,24 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     host.Attack(attackId);
                     break;
                 }
+
+                case 0xD0: // MESB "BattleDialog": battle text for ~60 frames — does NOT block (returns 0, no wait)
+                {
+                    var flag = code[pos++];
+                    Int32 textId;
+                    if ((flag & 1) != 0)
+                    {
+                        RunExpression(code, ref pos);
+                        textId = Evaluate(Pop());
+                    }
+                    else
+                    {
+                        textId = (Int16)(code[pos] | code[pos + 1] << 8);
+                        pos += 2;
+                    }
+                    host.BattleDialog(textId);
+                    break;
+                }
                     
                 default:
                     throw new NotSupportedException(

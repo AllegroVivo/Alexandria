@@ -3,15 +3,17 @@ using System.Text.RegularExpressions;
 using Alexandria.Formats.Scenes.BattleScene;
 using ff9tool;
 
-if (args.Length > 0 && args[0] == "battle")
+switch (args.Length)
 {
-    BattleCommand.Run([.. args.Skip(1)]);
-    return;
-}
-if (args.Length > 0 && args[0] == "scripts")
-{
-    ScriptCommand.Run([.. args.Skip(1)]);
-    return;
+    case > 0 when args[0] == "battle":
+        BattleCommand.Run([.. args.Skip(1)]);
+        return;
+    case > 0 when args[0] == "scripts":
+        ScriptCommand.Run([.. args.Skip(1)]);
+        return;
+    case >0 when args[0]== "minds":
+        MindCensusCommand.Run();
+        return;
 }
 
 var path = args[0];

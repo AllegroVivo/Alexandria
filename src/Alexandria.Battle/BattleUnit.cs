@@ -7,18 +7,18 @@ public sealed class BattleUnit
 {
     public required String Name { get; init; }
     public required Int32 Level { get; init; }
-    public required Int32 MaxHP { get; init; }
-    public required Int32 MaxMP { get; init; }
+    public required Int32 MaxHP { get; set; }
+    public required Int32 MaxMP { get; set; }
     public Int32 CurrentHP { get; set; }
     public Int32 CurrentMP { get; set; }
     public required Int32 Speed { get; init; }
-    public required Int32 Strength { get; init; }
-    public required Int32 Magic { get; init; }
+    public required Int32 Strength { get; set; }
+    public required Int32 Magic { get; set; }
     public required Int32 Spirit { get; init; }
-    public required Int32 PhysicalDefense { get; init; }
-    public required Int32 PhysicalEvade { get; init; }
-    public required Int32 MagicalDefense { get; init; }
-    public required Int32 MagicalEvade { get; init; }
+    public required Int32 PhysicalDefense { get; set; }
+    public required Int32 PhysicalEvade { get; set; }
+    public required Int32 MagicalDefense { get; set; }
+    public required Int32 MagicalEvade { get; set; }
     public Int32 ATBGauge { get; set; }
     public BattleStatus Statuses { get; set; }
     
@@ -45,6 +45,14 @@ public sealed class BattleUnit
     public Element WeakElements { get; set; }
     public Element BonusElements { get; set; }   // Elem-Atk boost gear (p_up_attr)
     public Element WeaponElement { get; set; }   // damage element of the equipped weapon
+    
+    public BattleStatus PermanentStatuses { get; set; }
+    public BattleStatus ImmuneStatuses { get; set; }
+    
+    public Int32 StandAnimation { get; set; }
+    public Int32 Row { get; set; }
+    public Int32 Category { get; set; }
+    public Int32 ModelType { get; set; }
 
     public static BattleUnit FromEnemy(String name, BattleSceneMonsterParam m) => new()
     {
@@ -65,7 +73,10 @@ public sealed class BattleUnit
         GuardElements = (Element)m.GuardElement,
         AbsorbElements = (Element)m.AbsorbElement,
         HalfElements = (Element)m.HalfElement,
-        WeakElements = (Element)m.WeakElement
+        WeakElements = (Element)m.WeakElement,
+        Row = 2,
+        Category = m.Category,
+        ImmuneStatuses = (BattleStatus)m.ResistStatus
     };
 
     public Boolean Has(BattleStatus status) => (Statuses & status) != 0;

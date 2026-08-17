@@ -11,6 +11,6 @@ public interface IEbHost
     Int32 ReadStat(Int32 targetMask, Int32 statId); // B_PICK / B_MEMBER — bite 2
     void WriteStat(Int32 targetMask, Int32 statId, Int32 value);
     Int32 RandomBit(Int32 mask); // B_SELECT — bite 2
-
     void Attack(Int32 attackId); // BTLCMD — target rides in SysList[0]
+    void BattleDialog(Int32 textId); // MESB 0xD0 — fire-and-forget HUD text, never blocks
 }

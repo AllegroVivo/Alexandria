@@ -57,6 +57,12 @@ public static class BattleCommand
             for (var i = 0; i < enemies.Count; i++)
                 enemies[i].Brain = new ScriptedBrain(script.Entries[i + 1], host, selfLine: 4 + i);
         }
+
+        var sceneIDS = SceneIDs.Load(@"C:\Dev\Memoria\FF9Data\SceneData.csv");
+        var mesPath = Path.Combine(@"C:\Dev\Memoria\FF9Data\Text\Battle",
+            sceneIDS[Path.GetFileName(sceneDir)["EVT_BATTLE_".Length..]] + ".mes");
+        var battleText = File.Exists(mesPath) ? BattleText.Load(mesPath) : null;
+        
         var spellbook = party.ToDictionary(
             p => p.Name,
             p => Spellbook.For(db, p.Name,
@@ -78,7 +84,12 @@ public static class BattleCommand
             NarrateTicks(engine);
 
             if (engine.IsEnemy(ready))
+            {
                 Narrate(engine.ExecuteEnemyTurn(ready));
+                foreach (var id in host.PendingDialogs)
+                    Console.WriteLine($"  『{(battleText is not null && id < battleText.Count ? battleText[id] : $"battle text {id}")}』");
+                host.PendingDialogs.Clear();
+            }
             else
                 Narrate(TakePlayerTurn(db, engine, ready, spellbook));
         }
