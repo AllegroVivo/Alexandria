@@ -46,10 +46,9 @@ public class EbVmOracleTests
         }
 
         public void Attack(Int32 attackId) => AttackId = attackId;
+        public void BattleDialog(Int32 textId) => throw new NotSupportedException();
         public void WriteStat(Int32 mask, Int32 statId, Int32 value) => throw new NotSupportedException($"stat {statId}");
     }
-    
-    public void BattleDialog(Int32 textId) => throw new NotSupportedException();
 
     // ---- local builders (mirrors of the ones in EnemyBrainTests) ----
 

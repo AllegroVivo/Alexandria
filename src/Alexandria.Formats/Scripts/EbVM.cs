@@ -1,21 +1,47 @@
 namespace Alexandria.Formats.Scripts;
 
+/// <summary>Where a Cell's payload points (mirror: EBin.VariableSource).</summary>
+public enum VarSource
+{
+    Global = 0,
+    Map = 1,
+    Instance = 2,
+    Null = 3,
+    Object = 4,
+    System = 5,
+    Member = 6,
+    Int26 = 7
+}
+
+/// <summary>How wide a variable access is (mirror: EBin.VariableType). Vars are
+/// spec-typed PER ACCESS: the same offset can be three Byte counters to one
+/// instruction and an Int24 table to the next.</summary>
+public enum VarType
+{
+    SBit = 0,
+    Bit = 1,
+    Int24 = 2,
+    UInt24 = 3,
+    SByte = 4,
+    Byte = 5,
+    Int16 = 6,
+    UInt16 = 7
+}
+
 /// <summary>
 /// Executes .eb bytecode (mirror: EBin.expr / EvaluateValueExpression /
-/// SetVariableValue / jumpToCommand). The calc stack holds TAGGED cells -
-/// source bits 26-28 over a 26-bit payload - and persists across instructions,
-/// so an EXPR's leftover condition feeds the following branch, as in the engine.
-/// Variable pools are byte-addressed with per-type widths; Int24 is the workhorse.
-/// Unsupported opcodes throw with their address.
+/// SetVariableValue / jumpToCommand). The calc stack holds tagged Cells — a
+/// 26-bit payload under source bits 26-28 and type bits 29-31 — emptied at
+/// every Eval start exactly as vanilla's is, so an Eval's leftover feeds only
+/// the branch that follows it. Variable pools are byte-addressed with
+/// per-access widths; Int24 is the workhorse. Unknown opcodes throw with
+/// their address.
 /// </summary>
-public sealed class EbVM(EbEntry entry, IEbHost host)
+public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
 {
     private readonly Byte[] _vars = new Byte[256];      // instance vars (entry.VarCount bytes used)
-    private readonly Byte[] _map = new Byte[256];
-    private readonly Byte[] _global = new Byte[2048];
-    private readonly Stack<Int32> _calc = new();
-
-    private const Int32 Int26Tag = 7 << 26;
+    private readonly EbState _state = state ?? new EbState();
+    private readonly Stack<Cell> _calc = new();
 
     private Int32 _memberTarget = -1;
 
@@ -44,10 +70,10 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
 
             switch (op)
             {
-                case 0x00:
+                case Op.Nop:
                     break;
 
-                case 0x01: // jump: signed offset
+                case Op.Jump: // jump: signed offset
                 {
                     var offset = (Int16)(code[pos] | code[pos + 1] << 8);
                     pos += 2;
@@ -55,7 +81,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     break;
                 }
 
-                case 0x02: // ifnot: UNSIGNED offset (vanilla quirk)
+                case Op.IfNot: // ifnot: UNSIGNED offset (vanilla quirk)
                 {
                     var condition = Evaluate(Pop());
                     var offset = (UInt16)(code[pos] | code[pos + 1] << 8);
@@ -65,7 +91,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     break;
                 }
 
-                case 0x03: // if: signed offset
+                case Op.If: // if: signed offset
                 {
                     var condition = Evaluate(Pop());
                     var offset = (Int16)(code[pos] | code[pos + 1] << 8);
@@ -75,15 +101,15 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     break;
                 }
                 
-                case 0x04:
+                case Op.Return:
                     return;
                 
-                case 0x05:
+                case Op.Eval:
                     _calc.Clear(); // mirror: expr() empties the calc stack at every statement start
                     RunExpression(code, ref pos);
                     break;
 
-                case 0x06: // switch with explicit case values
+                case Op.SwitchCase: // switch with explicit case values
                 {
                     var basePos = pos;
                     var selector = Evaluate(Pop()) & 0xFFFF;
@@ -103,7 +129,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     break;
                 }
 
-                case 0x0B: // switch over min..min+count−1
+                case Op.SwitchRange: // switch over min..min+count−1
                 {
                     var basePos = pos;
                     var selector = Evaluate(Pop());
@@ -123,7 +149,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     break;
                 }
 
-                case 0x22: // WAIT: park N frames and yield — a run-to-completion call treats them as elapsed
+                case Op.Wait: // WAIT: park N frames and yield — a run-to-completion call treats them as elapsed
                 {
                     var flag = code[pos++];
                     if ((flag & 1) != 0)
@@ -136,7 +162,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     break;
                 }
 
-                case 0x38: // BTLCMD: the script acts
+                case Op.BattleCommand: // BTLCMD: the script acts
                 {
                     var flag = code[pos++];
                     Int32 attackId;
@@ -151,7 +177,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     break;
                 }
 
-                case 0xD0: // MESB "BattleDialog": battle text for ~60 frames — does NOT block (returns 0, no wait)
+                case Op.BattleDialog: // MESB "BattleDialog": battle text for ~60 frames — does NOT block (returns 0, no wait)
                 {
                     var flag = code[pos++];
                     Int32 textId;
@@ -183,18 +209,18 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
         {
             var op = code[pos++];
 
-            if (op == 0x7F)
+            if (op == ExprOp.End)
                 return;
 
             if (op >= 0x80)
             {
-                if (op == 0xD3)
+                if (op == ExprOp.MemoriaEscape)
                     throw new NotSupportedException("Memoria extended-function escape 0xD3");
 
                 var index = (Int32)code[pos++];
                 if ((op & 0x20) != 0)
                     index |= code[pos++] << 8;
-                Push((op & 3) << 26 | (op & 0x1C) << 27 | index);
+                Push(Cell.FromSpec(op, index));
                 continue;
             }
 
@@ -206,18 +232,18 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
     {
         switch (op)
         {
-            case 4 or 5 or 6 or 7: // post/pre increment/decrement
+            case ExprOp.PostPlus or ExprOp.PostMinus or ExprOp.PrePlus or ExprOp.PreMinus: // post/pre increment/decrement
             {
                 var spec = Peek();
                 var current = Evaluate(Pop());
                 Push(spec);
-                var updated = op is 4 or 6 ? current + 1 : current - 1;
+                var updated = op is ExprOp.PostPlus or ExprOp.PrePlus ? current + 1 : current - 1;
                 WriteThrough(Pop(), updated);
-                PushValue(op is 6 or 7 ? updated : current);
+                PushValue(op is ExprOp.PrePlus or ExprOp.PreMinus ? updated : current);
                 break;
             }
 
-            case 8 or 9 or 10 or 11: // ++/-- a stat of every unit in a mask (OperatorAll1)
+            case ExprOp.PostPlusA or ExprOp.PostMinusA or ExprOp.PrePlusA or ExprOp.PreMinusA: // ++/-- a stat of every unit in a mask (OperatorAll1)
             {
                 var (statId, mask) = PopMemberOperands();
                 var result = 0;
@@ -227,19 +253,19 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                         continue;
                     _memberTarget = line;
                     var current = host.ReadStat(1 << line, statId);
-                    var written = op is 8 or 10 ? current + 1 : current - 1;
+                    var written = op is ExprOp.PostPlusA or ExprOp.PrePlusA ? current + 1 : current - 1;
                     host.WriteStat(1 << line, statId, written);
-                    result = op is 8 or 9 ? current : written;
+                    result = op is ExprOp.PostPlusA or ExprOp.PostMinusA ? current : written;
                 }
                 PushValue(result);
                 break;
             }
             
-            case 12: PushValue(+Evaluate(Pop())); break;
-            case 13: PushValue(-Evaluate(Pop())); break;
-            case 14: PushValue(+Evaluate(Pop()) == 0 ? 1 : 0); break;
+            case ExprOp.SinglePlus: PushValue(+Evaluate(Pop())); break;
+            case ExprOp.SingleMinus: PushValue(-Evaluate(Pop())); break;
+            case ExprOp.Not: PushValue(+Evaluate(Pop()) == 0 ? 1 : 0); break;
 
-            case 15: // B_NOT_E: the mask of units whose stat is zero (OperatorExtract1)
+            case ExprOp.NotE: // B_NOT_E: the mask of units whose stat is zero (OperatorExtract1)
             {
                 var (statId, mask) = PopMemberOperands();
                 var result = 0;
@@ -255,29 +281,41 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 break;
             }
             
-            case 16: PushValue(~Evaluate(Pop())); break;
+            case ExprOp.Comp: PushValue(~Evaluate(Pop())); break;
 
-            case >= 17 and <= 40 and not 28 and not 29 and not 30 and not 31 and not 34 and not 35: // plain binary ops (no _E variants)
+            case >= ExprOp.Mult and <= ExprOp.OrOr
+                and not ExprOp.LtE and not ExprOp.GtE and not ExprOp.LeE
+                and not ExprOp.GeE and not ExprOp.EqE and not ExprOp.NeE:
             {
                 var right = Evaluate(Pop());
                 var left = Evaluate(Pop());
                 PushValue(op switch
                 {
-                    17 => left * right, 18 => left / right, 19 => left % right,
-                    20 => left + right, 21 => left - right,
-                    22 => left << right, 23 => left >> right,
-                    24 => left < right ? 1 : 0, 25 => left > right ? 1 : 0,
-                    26 => left <= right ? 1 : 0, 27 => left >= right ? 1 : 0,
-                    32 => left == right ? 1 : 0, 33 => left != right ? 1 : 0,
-                    36 => left & right, 37 => left ^ right, 38 => left | right,
-                    39 => left != 0 && right != 0 ? 1 : 0,
-                    40 => left != 0 || right != 0 ? 1 : 0,
+                    ExprOp.Mult => left * right,
+                    ExprOp.Div => left / right,
+                    ExprOp.Rem => left % right,
+                    ExprOp.Plus => left + right,
+                    ExprOp.Minus => left - right,
+                    ExprOp.ShiftLeft => left << right,
+                    ExprOp.ShiftRight => left >> right,
+                    ExprOp.Lt => left < right ? 1 : 0,
+                    ExprOp.Gt => left > right ? 1 : 0,
+                    ExprOp.Le => left <= right ? 1 : 0,
+                    ExprOp.Ge => left >= right ? 1 : 0,
+                    ExprOp.Eq => left == right ? 1 : 0,
+                    ExprOp.Ne => left != right ? 1 : 0,
+                    ExprOp.And => left & right,
+                    ExprOp.Xor => left ^ right,
+                    ExprOp.Or => left | right,
+                    ExprOp.AndAnd => left != 0 && right != 0 ? 1 : 0,
+                    ExprOp.OrOr => left != 0 || right != 0 ? 1 : 0,
                     _ => throw new NotSupportedException($"operator {op}")
                 });
                 break;
             }
 
-            case 28 or 29 or 30 or 31 or 34 or 35 or 84 or 85 or 86 or 87: // _E: compare across a mask
+            case ExprOp.LtE or ExprOp.GtE or ExprOp.LeE or ExprOp.GeE or ExprOp.EqE or ExprOp.NeE
+                or ExprOp.AndE or ExprOp.NandE or ExprOp.XorE or ExprOp.OrE:
             {
                 var cmp = Evaluate(Pop());
                 var (statId, mask) = PopMemberOperands();
@@ -290,10 +328,16 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     var v = host.ReadStat(1 << line, statId);
                     var hit = op switch
                     {
-                        28 => v < cmp, 29 => v > cmp, 30 => v <= cmp, 31 => v >= cmp,
-                        34 => v == cmp, 35 => v != cmp,
-                        84 => (v & cmp) != 0, 85 => (v & cmp) == 0,
-                        86 => (v ^ cmp) != 0, _ => (v | cmp) != 0
+                        ExprOp.LtE => v < cmp,
+                        ExprOp.GtE => v > cmp,
+                        ExprOp.LeE => v <= cmp,
+                        ExprOp.GeE => v >= cmp,
+                        ExprOp.EqE => v == cmp,
+                        ExprOp.NeE => v != cmp,
+                        ExprOp.AndE => (v & cmp) != 0,
+                        ExprOp.NandE => (v & cmp) == 0,
+                        ExprOp.XorE => (v ^ cmp) != 0,
+                        _ => (v | cmp) != 0
                     };
                     if (hit)
                         result |= 1 << line;
@@ -302,13 +346,13 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 break;
             }
             
-            case 41: // B_MEMBER: push a stat reference
-                Push(6 << 26 | code[pos++]);
+            case ExprOp.Member: // B_MEMBER: push a stat reference
+                Push(Cell.MemberRef(code[pos++]));
                 break;
             
-            case 42: PushValue(Int32.PopCount(Evaluate(Pop())) is var n ? n : n); break;
+            case ExprOp.Count: PushValue(Int32.PopCount(Evaluate(Pop())) is var n ? n : n); break;
 
-            case 43: // B_PICK: the stat of the LOWEST unit in a mask (mirror: OperatorPick)
+            case ExprOp.Pick: // B_PICK: the stat of the LOWEST unit in a mask (mirror: OperatorPick)
             {
                 var (statId, mask) = PopMemberOperands();
                 var line = LowestBit(mask);
@@ -322,7 +366,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 break;
             }
             
-            case 44: // B_LET: value stays on the stack
+            case ExprOp.Let: // B_LET: value stays on the stack
             {
                 var value = Evaluate(Pop());
                 WriteThrough(Pop(), value);
@@ -330,7 +374,8 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 break;
             }
 
-            case 45 or (>= 54 and <= 60) or 64 or 65 or 66: // _A: assign to every unit (OperatorAll)
+            case ExprOp.LetA or (>= ExprOp.MultLetA and <= ExprOp.ShiftRightLetA)
+                or ExprOp.AndLetA or ExprOp.XorLetA or ExprOp.OrLetA: // _A: assign to every unit (OperatorAll)
             {
                 var value = Evaluate(Pop());
                 var (statId, mask) = PopMemberOperands();
@@ -343,13 +388,17 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                     var current = op == 45 ? 0 : host.ReadStat(1 << line, statId);
                     result = op switch
                     {
-                        45 => value,
-                        54 => current * value,
-                        55 => value == 0 ? current : current / value,
-                        56 => value == 0 ? current : current % value,
-                        57 => current + value, 58 => current - value,
-                        59 => current << value, 60 => current >> value,
-                        64 => current & value, 65 => current ^ value, _ => current | value
+                        ExprOp.LetA => value,
+                        ExprOp.MultLetA => current * value,
+                        ExprOp.DivLetA => value == 0 ? current : current / value, // /0 and %0 write the read back
+                        ExprOp.RemLetA => value == 0 ? current : current % value,
+                        ExprOp.PlusLetA => current + value,
+                        ExprOp.MinusLetA => current - value,
+                        ExprOp.ShiftLeftLetA => current << value,
+                        ExprOp.ShiftRightLetA => current >> value,
+                        ExprOp.AndLetA => current & value,
+                        ExprOp.XorLetA => current ^ value,
+                        _ => current | value
                     };
                     host.WriteStat(1 << line, statId, result);
                 }
@@ -357,8 +406,8 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 break;
             }
 
-            case >= 47 and <= 53: // arithmetic compound assignment
-            case >= 61 and <= 63: // bitwise compound assignment
+            case >= ExprOp.MultLet and <= ExprOp.ShiftRightLet: // arithmetic compound assignment
+            case ExprOp.AndLet or ExprOp.XorLet or ExprOp.OrLet: // bitwise compound assignment
             {
                 var value = Evaluate(Pop());
                 var spec = Peek();
@@ -366,17 +415,23 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 Push(spec);
                 var result = op switch
                 {
-                    47 => current * value, 48 => current / value, 49 => current % value,
-                    50 => current + value, 51 => current - value,
-                    52 => current << value, 53 => current >> value,
-                    61 => current & value, 62 => current ^ value, _ => current | value
+                    ExprOp.MultLet => current * value,
+                    ExprOp.DivLet => current / value,
+                    ExprOp.RemLet => current % value,
+                    ExprOp.PlusLet => current + value,
+                    ExprOp.MinusLet => current - value,
+                    ExprOp.ShiftLeftLet => current << value,
+                    ExprOp.ShiftRightLet => current >> value,
+                    ExprOp.AndLet => current & value,
+                    ExprOp.XorLet => current ^ value,
+                    _ => current | value
                 };
                 WriteThrough(Pop(), result);
                 PushValue(result);
                 break;
             }
 
-            case 46 or 67 or 68 or 69: // _E extract-assign: dest gets a truthiness mask (OperatorExtractLet)
+            case ExprOp.LetE or ExprOp.AndLetE or ExprOp.XorLetE or ExprOp.OrLetE: // _E extract-assign: dest gets a truthiness mask (OperatorExtractLet)
             {
                 var (statId, mask) = PopMemberOperands();
                 var result = 0;
@@ -391,9 +446,9 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 var dest = Pop();
                 result = op switch
                 {
-                    67 => Evaluate(dest) & result,
-                    68 => Evaluate(dest) ^ result,
-                    69 => Evaluate(dest) | result,
+                    ExprOp.AndLetE => Evaluate(dest) & result,
+                    ExprOp.XorLetE => Evaluate(dest) ^ result,
+                    ExprOp.OrLetE => Evaluate(dest) | result,
                     _ => result
                 };
                 WriteThrough(dest, result);
@@ -401,12 +456,12 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 break;
             }
             
-            case 70: PushValue((SByte)Evaluate(Pop())); break;
-            case 71: PushValue((Byte)Evaluate(Pop())); break;
-            case 72: PushValue((Int16)Evaluate(Pop())); break;
-            case 73: PushValue((UInt16)Evaluate(Pop())); break;
+            case ExprOp.Cast8: PushValue((SByte)Evaluate(Pop())); break;
+            case ExprOp.Cast8U: PushValue((Byte)Evaluate(Pop())); break;
+            case ExprOp.Cast16: PushValue((Int16)Evaluate(Pop())); break;
+            case ExprOp.Cast16U: PushValue((UInt16)Evaluate(Pop())); break;
 
-            case 75 or 76: // B_LMAX/B_LMIN: 1 << line of the best unit (mirror: OperatorExtract1)
+            case ExprOp.Lmax or ExprOp.Lmin: // B_LMAX/B_LMIN: 1 << line of the best unit (mirror: OperatorExtract1)
             {
                 var (statId, mask) = PopMemberOperands();
                 var best = op == 75 ? (Int32)Int16.MinValue : Int16.MaxValue;
@@ -417,7 +472,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                         continue;
                     _memberTarget = line;
                     var v = host.ReadStat(1 << line, statId);
-                    if (op == 75 ? best < v : best > v)
+                    if (op == ExprOp.Lmax ? best < v : best > v)
                     {
                         best = v;
                         bestLine = line;
@@ -427,16 +482,16 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
                 break;
             }
             
-            case 77: PushValue(host.RandomBit(Evaluate(Pop()))); break;
-            case 121: Push(5 << 26 | code[pos++]); break; // System-tagged cell
-            case 122: PushValue(host.Sysvar(code[pos++])); break; // evaluated at decode time
+            case ExprOp.Select: PushValue(host.RandomBit(Evaluate(Pop()))); break;
+            case ExprOp.SysList: Push(Cell.SysSlot(code[pos++])); break;
+            case ExprOp.Sysvar: PushValue(host.Sysvar(code[pos++])); break; // evaluated at decode time
             
-            case 125: // B_CONST: i16
+            case ExprOp.Const: // B_CONST: i16
                 PushValue((Int16)(code[pos] | code[pos + 1] << 8));
                 pos += 2;
                 break;
 
-            case 126: // B_CONST4: 26-bit signed
+            case ExprOp.Const4: // B_CONST4: 26-bit signed
             {
                 var v = code[pos] | code[pos + 1] << 8 | code[pos + 2] << 16 | code[pos + 3] << 24;
                 pos += 4;
@@ -450,10 +505,10 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
     }
     
     // ---- Tagged cells (mirror: EvaluateValueExpression / SetVariableValue) ----
-    private void Push(Int32 cell) => _calc.Push(cell);
-    private Int32 Pop() => _calc.Pop();
-    private Int32 Peek() => _calc.Peek();
-    private void PushValue(Int32 value) => _calc.Push((value & 0x3FFFFFF) | Int26Tag);
+    private void Push(Cell cell) => _calc.Push(cell);
+    private Cell Pop() => _calc.Pop();
+    private Cell Peek() => _calc.Peek();
+    private void PushValue(Int32 value) => _calc.Push(Cell.Value(value));
 
     private Int32 MemberLine() => _memberTarget >= 0
         ? _memberTarget
@@ -466,10 +521,10 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
     private (Int32 StatID, Int32 Mask) PopMemberOperands()
     {
         var member = Pop();
-        if ((member >> 26 & 7) != 6)
-            throw new NotSupportedException($"member-set operand source {(member >> 26) & 7} — teach me");
+        if (member.Source != VarSource.Member)
+            throw new NotSupportedException($"member-set operand source {member.Source} — teach me");
         var mask = Evaluate(Pop()) & 0xFF;
-        return (member & 0xFF, mask);
+        return (member.StatID, mask);
     }
 
     private static Int32 LowestBit(Int32 mask)
@@ -480,73 +535,202 @@ public sealed class EbVM(EbEntry entry, IEbHost host)
         return -1;
     }
 
-    private Int32 Evaluate(Int32 cell) => ((cell >> 26) & 7) switch
+    private Int32 Evaluate(Cell cell) => cell.Source switch
     {
-        0 => Read(_global, cell),
-        1 => Read(_map, cell),
-        2 => Read(_vars, cell),
-        5 => host.SysList(cell & 0xFF),
-        6 => host.ReadStat(1 << MemberLine(), cell & 0xFF),
-        7 => (cell << 6) >> 6, // Int26, sign-extended
+        VarSource.Global => Read(_state.Global, cell),
+        VarSource.Map => Read(_state.Map, cell),
+        VarSource.Instance => Read(_vars, cell),
+        VarSource.System => host.SysList(cell.Slot),
+        VarSource.Member => host.ReadStat(1 << MemberLine(), cell.StatID),
+        VarSource.Int26 => cell.SignedValue,
         var source => throw new NotSupportedException($"variable source {source} — teach me")
     };
 
-    private void WriteThrough(Int32 cell, Int32 value)
+    private void WriteThrough(Cell cell, Int32 value)
     {
-        if (((cell >> 26) & 7) == 6) // bare stat write: whichever unit the last loop touched
+        switch (cell.Source)
         {
-            host.WriteStat(1 << MemberLine(), cell & 0xFF, value);
-            return;
-        }
-        
-        Byte[]? pool = ((cell >> 26) & 7) switch
-        {
-            0 => _global, 1 => _map, 2 => _vars,
-            5 => null,
-            var source => throw new NotSupportedException($"write to source {source}")
-        };
-        if (pool is null)
-        {
-            host.SetSysList(cell & 0xFF, value);
-            return;
+            case VarSource.Member: // bare stat write: whichever unit the last loop touched
+                host.WriteStat(1 << MemberLine(), cell.StatID, value);
+                return;
+            case VarSource.System:
+                host.SetSysList(cell.Slot, value);
+                return;
         }
 
-        var type = (cell >> 29) & 7;
-        var ofs = cell & 0xFFFF;
-        switch (type)
+        var pool = cell.Source switch
         {
-            case 0 or 1: // SBit/Bit
+            VarSource.Global => _state.Global,
+            VarSource.Map => _state.Map,
+            VarSource.Instance => _vars,
+            var source => throw new NotSupportedException($"write to source {source}")
+        };
+
+        var ofs = cell.Offset;
+        switch (cell.Type)
+        {
+            case VarType.SBit or VarType.Bit:
                 if (value == 0) pool[ofs >> 3] &= (Byte)~(1 << (ofs & 7));
                 else pool[ofs >> 3] |= (Byte)(1 << (ofs & 7));
                 break;
-            case 2 or 3: // Int24/UInt24 — 3 bytes LE
+            case VarType.Int24 or VarType.UInt24: // 3 bytes LE
                 pool[ofs] = (Byte)value;
                 pool[ofs + 1] = (Byte)(value >> 8);
                 pool[ofs + 2] = (Byte)(value >> 16);
                 break;
-            case 4 or 5:
+            case VarType.SByte or VarType.Byte:
                 pool[ofs] = (Byte)value;
                 break;
-            default: // Int16/UInt16
+            default: // Int16/UInt16 — 2 bytes LE
                 pool[ofs] = (Byte)value;
                 pool[ofs + 1] = (Byte)(value >> 8);
                 break;
         }
     }
 
-    private static Int32 Read(Byte[] pool, Int32 cell)
+    private static Int32 Read(Byte[] pool, Cell cell)
     {
-        var type = (cell >> 29) & 7;
-        var ofs = cell & 0xFFFF;
-        return type switch
+        var ofs = cell.Offset;
+        return cell.Type switch
         {
-            0 or 1 => (pool[ofs >> 3] >> (ofs & 7)) & 1,
-            2 => pool[ofs] | pool[ofs + 1] << 8 | (SByte)pool[ofs + 2] << 16,
-            3 => pool[ofs] | pool[ofs + 1] << 8 | pool[ofs + 2] << 16,
-            4 => (SByte)pool[ofs],
-            5 => pool[ofs],
-            6 => (Int16)(pool[ofs] | pool[ofs + 1] << 8),
+            VarType.SBit or VarType.Bit => (pool[ofs >> 3] >> (ofs & 7)) & 1,
+            VarType.Int24 => pool[ofs] | pool[ofs + 1] << 8 | (SByte)pool[ofs + 2] << 16,
+            VarType.UInt24 => pool[ofs] | pool[ofs + 1] << 8 | pool[ofs + 2] << 16,
+            VarType.SByte => (SByte)pool[ofs],
+            VarType.Byte => pool[ofs],
+            VarType.Int16 => (Int16)(pool[ofs] | pool[ofs + 1] << 8),
             _ => pool[ofs] | pool[ofs + 1] << 8
         };
+    }
+    
+    /// <summary>Statement opcodes, named as the disassembler prints them
+    /// (mirror: EBin.event_code_binary; vanilla mnemonics in comments).</summary>
+    private static class Op
+    {
+        public const Int32 Nop = 0x00;
+        public const Int32 Jump = 0x01;          // bra — SIGNED i16 offset
+        public const Int32 IfNot = 0x02;         // beq — UNSIGNED u16 offset (vanilla quirk)
+        public const Int32 If = 0x03;            // bne — SIGNED i16 offset
+        public const Int32 Return = 0x04;
+        public const Int32 Eval = 0x05;          // EXPR
+        public const Int32 SwitchCase = 0x06;    // explicit case values
+        public const Int32 SwitchRange = 0x0B;   // min..min+count−1
+        public const Int32 Wait = 0x22;          // WAIT — park N frames
+        public const Int32 BattleCommand = 0x38; // BTLCMD — the script acts
+        public const Int32 BattleDialog = 0xD0;  // MESB — HUD text, never blocks
+    }
+
+    /// <summary>Expression operators (mirror: EBin.op_binary, B_ prefix dropped).
+    /// The primed families loop the units under a mask: _E extracts a result
+    /// mask, _A assigns through every unit — EventEngine.OperatorExtract/All.</summary>
+    private static class ExprOp
+    {
+        public const Int32 End = 0x7F;
+        
+        public const Int32 PostPlus = 4;
+        public const Int32 PostMinus = 5;
+        public const Int32 PrePlus = 6;
+        public const Int32 PreMinus = 7;
+        public const Int32 PostPlusA = 8;
+        public const Int32 PostMinusA = 9;
+        public const Int32 PrePlusA = 10;
+        public const Int32 PreMinusA = 11;
+        public const Int32 SinglePlus = 12;
+        public const Int32 SingleMinus = 13;
+        public const Int32 Not = 14;
+        public const Int32 NotE = 15;
+        public const Int32 Comp = 16;
+        public const Int32 Mult = 17;
+        public const Int32 Div = 18;
+        public const Int32 Rem = 19;
+        public const Int32 Plus = 20;
+        public const Int32 Minus = 21;
+        public const Int32 ShiftLeft = 22;
+        public const Int32 ShiftRight = 23;
+        public const Int32 Lt = 24;
+        public const Int32 Gt = 25;
+        public const Int32 Le = 26;
+        public const Int32 Ge = 27;
+        public const Int32 LtE = 28;
+        public const Int32 GtE = 29;
+        public const Int32 LeE = 30;
+        public const Int32 GeE = 31;
+        public const Int32 Eq = 32;
+        public const Int32 Ne = 33;
+        public const Int32 EqE = 34;
+        public const Int32 NeE = 35;
+        public const Int32 And = 36;
+        public const Int32 Xor = 37;
+        public const Int32 Or = 38;
+        public const Int32 AndAnd = 39;
+        public const Int32 OrOr = 40;
+        public const Int32 Member = 41;
+        public const Int32 Count = 42;
+        public const Int32 Pick = 43;
+        public const Int32 Let = 44;
+        public const Int32 LetA = 45;
+        public const Int32 LetE = 46;
+        public const Int32 MultLet = 47;
+        public const Int32 DivLet = 48;
+        public const Int32 RemLet = 49;
+        public const Int32 PlusLet = 50;
+        public const Int32 MinusLet = 51;
+        public const Int32 ShiftLeftLet = 52;
+        public const Int32 ShiftRightLet = 53;
+        public const Int32 MultLetA = 54;
+        public const Int32 DivLetA = 55;
+        public const Int32 RemLetA = 56;
+        public const Int32 PlusLetA = 57;
+        public const Int32 MinusLetA = 58;
+        public const Int32 ShiftLeftLetA = 59;
+        public const Int32 ShiftRightLetA = 60;
+        public const Int32 AndLet = 61;
+        public const Int32 XorLet = 62;
+        public const Int32 OrLet = 63;
+        public const Int32 AndLetA = 64;
+        public const Int32 XorLetA = 65;
+        public const Int32 OrLetA = 66;
+        public const Int32 AndLetE = 67;
+        public const Int32 XorLetE = 68;
+        public const Int32 OrLetE = 69;
+        public const Int32 Cast8 = 70;
+        public const Int32 Cast8U = 71;
+        public const Int32 Cast16 = 72;
+        public const Int32 Cast16U = 73;
+        public const Int32 Lmax = 75;
+        public const Int32 Lmin = 76;
+        public const Int32 Select = 77;        // RandomBit
+        public const Int32 AndE = 84;
+        public const Int32 NandE = 85;
+        public const Int32 XorE = 86;
+        public const Int32 OrE = 87;
+        public const Int32 SysList = 121;
+        public const Int32 Sysvar = 122;
+        public const Int32 Const = 125;        // i16
+        public const Int32 Const4 = 126;       // 26-bit signed
+        public const Int32 MemoriaEscape = 0xD3;
+    }
+
+    /// <summary>One calc-stack cell, EBin's exact layout: a 26-bit payload under
+    /// source bits 26-28 and type bits 29-31. Computed results are Int26 cells;
+    /// everything else is a lazy reference, evaluated only when popped.</summary>
+    private readonly record struct Cell(Int32 Bits)
+    {
+        public VarSource Source => (VarSource)(Bits >> 26 & 7);
+        public VarType Type => (VarType)(Bits >> 29 & 7);
+
+        public Int32 SignedValue => Bits << 6 >> 6; // Int26 pyload, sign-extended
+        public Int32 Offset => Bits & 0xFFFF; // pool byte offset
+        public Int32 StatID => Bits & 0xFF; // Member payload (write side uses t0 & 0xFF)
+        public Int32 Slot => Bits&0xFF; // SysList slot
+
+        public static Cell Value(Int32 v) => new(v & 0x3FFFFFF | (Int32)VarSource.Int26 << 26);
+        public static Cell MemberRef(Int32 statId) => new((Int32)VarSource.Member << 26 | statId);
+        public static Cell SysSlot(Int32 slot) => new((Int32)VarSource.System << 26 | slot);
+
+        /// <summary>A var-spec byte ≥0x80: bits 0-1 source, 2-4 type, 5 = 16-bit index.</summary>
+        public static Cell FromSpec(Int32 spec, Int32 index)
+            => new((spec & 3) << 26 | (spec & 0x1C) << 27 | index);
+        
     }
 }

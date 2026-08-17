@@ -92,6 +92,13 @@ public static class BattleCommand
             }
             else
                 Narrate(TakePlayerTurn(db, engine, ready, spellbook));
+
+            foreach (var reaction in engine.PendingReactions)
+            {
+                Console.WriteLine("  — counterattack! —");
+                Narrate(reaction);
+            }
+            engine.PendingReactions.Clear();
         }
         NarrateTicks(engine);
 

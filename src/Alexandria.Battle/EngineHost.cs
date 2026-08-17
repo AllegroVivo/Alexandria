@@ -8,6 +8,8 @@ namespace Alexandria.Battle;
 /// btl_scrp.GetCharacterData.</summary>
 public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<BattleUnit> enemies, Random rng) : IEbHost
 {
+    private Int32 _reactCommand;
+    private Int32 _reactAbility;
     private readonly UInt16[] _sysList = new UInt16[8];
 
     /// <summary>Text ids queued by MESB (0xD0); the runner drains and prints them.</summary>
@@ -19,6 +21,15 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
     /// <summary>Mirror: ProcessCodeExt seeds SV_FunctionEnemy with the running
     /// object's own mask before every slice of battle code.</summary>
     public void BeginSlice(Int32 line) => _sysList[1] = (UInt16)(1 << line);
+
+    /// <summary>Mirror: RequestAction stores _btlCmdPrmCmd/_btlCmdPrmSub before a
+    /// counter (tag 6) or death (tag 9) function runs; Sysvar 28/29 hand them to
+    /// the script at reaction levels (GetSysvar.cs: gExec.level <= 2 branch).</summary>
+    public void SeedReaction(Int32 commandId, Int32 abilityId)
+    {
+        _reactCommand = commandId;
+        _reactAbility = abilityId;
+    }
 
     public BattleUnit? UnitFromMask(Int32 mask)
     {
@@ -38,6 +49,8 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
     {
         0 => Random8(),
         25 => 0, // SeqBusy: headless runs no animation sequences
+        28 => _reactCommand, // CurCommand: what provoked the reaction
+        29 => _reactAbility, // CurAbility: its ability/sub id
         30 => 4, // BattlePhase: the in-battle phase every wait-loop waits for
         36 => -1, // Attacker: GetBattleData returns UInt32.MaxValue → -1 when no command is in flight
         _ => throw new NotSupportedException($"sysvar {id} — teach me")

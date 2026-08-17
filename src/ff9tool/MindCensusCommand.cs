@@ -14,7 +14,7 @@ public static class MindCensusCommand
 
     public static void Run()
     {
-        Int32 scenes = 0, minds = 0, clean = 0;
+        Int32 scenes = 0, minds = 0, clean = 0, reactions = 0, reactionsClean = 0;
         var wishlist = new Dictionary<String, Int32>();
         var examples = new Dictionary<String, String>();
 
@@ -43,9 +43,9 @@ public static class MindCensusCommand
                 var rng = new Random(entry.Index * 1000 + scenes);
                 var host = new EngineHost(party, enemies, rng);
                 var selfLine = 4 + Math.Min(Math.Max(entry.Index - 1, 0), enemies.Count - 1);
+                var vm = new EbVM(entry, host);
                 try
                 {
-                    var vm = new EbVM(entry, host);
                     host.BeginSlice(selfLine);
                     if (entry.Functions.Any(f => f.Tag == 0))
                         vm.RunFunction(0);
@@ -62,12 +62,33 @@ public static class MindCensusCommand
                     wishlist[ex.Message] = wishlist.GetValueOrDefault(ex.Message) + 1;
                     examples.TryAdd(ex.Message, $"{name}[{entry.Index}]");
                 }
+
+                foreach (var tag in new UInt16[] { 6, 9 })
+                {
+                    if (entry.Functions.All(f => f.Tag != tag))
+                        continue;
+                    reactions++;
+                    try
+                    {
+                        host.BeginSlice(selfLine);
+                        host.SetSysList(0, 0b0001); // SV_0 = the provoking attacker (player line 0)
+                        host.SeedReaction(1, 0);
+                        vm.RunFunction(tag);
+                        reactionsClean++;
+                    }
+                    catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
+                    {
+                        wishlist[ex.Message] = wishlist.GetValueOrDefault(ex.Message) + 1;
+                        examples.TryAdd(ex.Message, $"{name}[{entry.Index}] tag{tag}");
+                    }
+                }
             }
         }
         
         Console.WriteLine($"{scenes} scenes, {minds} minds (entries with an atb function)");
         Console.WriteLine($"{clean}/{minds} ran init + four turns clean");
-        Console.WriteLine("wishlist (minds blocked):");
+        Console.WriteLine($"{reactionsClean}/{reactions} reaction functions (counter/death) ran clean");
+        Console.WriteLine("wishlist (blocked):");
         foreach (var (message, count) in wishlist.OrderByDescending(w => w.Value).Take(20))
             Console.WriteLine($"  {count,4}× {message}  e.g. {examples[message]}");
     }

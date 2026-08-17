@@ -10,22 +10,29 @@ public sealed class BattleEngine
 {
     private readonly Random _rng;
     private readonly Int32 _coefficient;
+    private readonly EngineHost? _host;
     private IReadOnlyDictionary<BattleStatus, StatusTiming> _statusTable;
+    private Boolean _reacting;
     
-    public IReadOnlyList<BattleUnit> Players { get; }
-    public IReadOnlyList<BattleUnit> Enemies { get; }
+    public List<BattleUnit> Players { get; }
+    public List<BattleUnit> Enemies { get; }
     
     public List<StatusTickEvent> PendingStatusEvents { get; } = [];
 
-    public BattleEngine(IReadOnlyList<BattleUnit> players, IReadOnlyList<BattleUnit> enemies,
+    /// <summary>Reactions fired by the last resolved action, for the caller to narrate
+    /// (a counter's retaliation resolves as a normal enemy action).</summary>
+    public List<BattleEvent> PendingReactions { get; } = [];
+
+    public BattleEngine(List<BattleUnit> players, List<BattleUnit> enemies,
         EncounterKind kind, Random rng, Int32 coefficient = ATBClock.NormalCoefficient,
-        IReadOnlyDictionary<BattleStatus, StatusTiming>? statusTable = null)
+        IReadOnlyDictionary<BattleStatus, StatusTiming>? statusTable = null, EngineHost? host = null)
     {
         Players = players;
         Enemies = enemies;
         _rng = rng;
         _coefficient = coefficient;
         _statusTable = statusTable ?? StatusTicker.DefaultTable;
+        _host = host;
         ATBClock.PlaceInitialGauges(players, enemies, kind, rng);
     }
 
@@ -67,6 +74,7 @@ public sealed class BattleEngine
         if (result.Damage > 0 && target.Has(BattleStatus.Sleep))
             StatusApplication.Remove(target, BattleStatus.Sleep);
         ATBClock.ResetAfterAction(attacker);
+        Provoke(attacker, target, 1);
         return new BattleEvent(attacker, target, result);
     }
 
@@ -83,6 +91,7 @@ public sealed class BattleEngine
             : 0;
         PhysicalAttack.Apply(target, result);
         ATBClock.ResetAfterAction(caster);
+        Provoke(caster, target, 22);
         return new BattleEvent(caster, target, result, added);
     }
 
@@ -113,12 +122,13 @@ public sealed class BattleEngine
         }
 
         ATBClock.ResetAfterAction(caster);
+        Provoke(caster, target, 22);
         return new BattleEvent(caster, target, result, landed);
     }
 
     /// <summary>Enemy turn. Target: uniform among living players (mirror: the B_SELECT
     /// operator, EventEngine.OperatorSelect). Attack choice: uniform among affordable
-    /// roster entries.
+    /// roster entries.</summary>
     public BattleEvent ExecuteEnemyTurn(BattleUnit enemy)
     {
         if (enemy.Brain is not null
@@ -151,6 +161,39 @@ public sealed class BattleEngine
             _ => ExecuteAttack(enemy, target, attack.Power, attack.Elements)
         };
         return e with { Attack = attack };
+    }
+
+    /// <summary>Mirror: SBattleCalculator.CalcResult's tail — every resolved
+    /// (command, target) pair provokes the target's script. Enemy targets only,
+    /// player attackers only, blocked by PreventCounter; HP-zero fires the death
+    /// function (tag 9), otherwise the counter (tag 6). Counters can't chain:
+    /// vanilla gates on IsCommandDeclarable, and a retaliation isn't declarable.</summary>
+    private void Provoke(BattleUnit attacker, BattleUnit target, Int32 commandId)
+    {
+        if (_reacting || !IsEnemy(target) || IsEnemy(attacker))
+            return;
+        if (target.Has(BattleStatus.CannotAct | BattleStatus.Death | BattleStatus.Sleep))
+            return;
+        if (target.Brain is not ScriptedBrain brain)
+            return;
+
+        var tag = (UInt16)(target.IsAlive ? 6 : 9);
+        if (tag == 9 && !target.DiesFighting)
+            return;
+
+        _reacting = true;
+        try
+        {
+            if (brain.React(tag, 1 << Players.IndexOf(attacker), commandId, 0) is not { } attackId ||
+                target.Attacks.FirstOrDefault(a => a.ID == attackId) is not { } retaliation)
+                return;
+            var chosen = _host?.UnitFromMask(_host.SysList(0)) ?? attacker;
+            PendingReactions.Add(ExecuteAttack(target, chosen, retaliation.Power, retaliation.Elements) with { Attack = retaliation });
+        }
+        finally
+        {
+            _reacting = false;
+        }
     }
 }
 

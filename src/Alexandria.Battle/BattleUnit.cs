@@ -33,6 +33,10 @@ public sealed class BattleUnit
     public List<EnemyAttack> Attacks { get; } = [];
 
     public Boolean IsAlive => CurrentHP > 0;
+    
+    /// <summary>ENEMY.FLG_DIE_ATK (bit 0 of SB2 Flags): this enemy runs a death
+    /// script (tag 9) when killed — the boss "death scene" flag.</summary>
+    public Boolean DiesFighting { get; set; }
 
     /// <summary>Vanilla gauge size: fast units have SHORTER gauges (btl_para.GetMaxATB, /4).</summary>
     public Int32 ATBMax => (60 - Speed) * 40;
@@ -76,7 +80,8 @@ public sealed class BattleUnit
         WeakElements = (Element)m.WeakElement,
         Row = 2,
         Category = m.Category,
-        ImmuneStatuses = (BattleStatus)m.ResistStatus
+        ImmuneStatuses = (BattleStatus)m.ResistStatus,
+        DiesFighting = (m.Flags & 1) != 0
     };
 
     public Boolean Has(BattleStatus status) => (Statuses & status) != 0;
