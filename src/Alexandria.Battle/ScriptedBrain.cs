@@ -14,6 +14,8 @@ public sealed class ScriptedBrain : IEnemyBrain
     private readonly Int32 _selfLine;
     private readonly EbEntry _entry;
 
+    private const Int32 MainLoopLevel = 7; // cEventLevelN - 1, the idle priority
+
     public ScriptedBrain(EbEntry entry, EngineHost host, Int32 selfLine, EbState? state = null)
     {
         _vm = new EbVM(entry, host, state);
@@ -22,6 +24,16 @@ public sealed class ScriptedBrain : IEnemyBrain
         _entry = entry;
         host.BeginSlice(selfLine);
         _vm.RunFunction(0);
+        _vm.Request(1, MainLoopLevel);
+    }
+
+    /// <summary>One frame of this mind's main loop — the boss's stage manager:
+    /// it introduces its siblings through the shared map pool, rewrites its own
+    /// stats, and polls for the phase changes its other functions branch on.</summary>
+    public void Tick()
+    {
+        _host.BeginSlice(_selfLine);
+        _vm.Tick();
     }
     
     public (Int32 AttackID, BattleUnit Target) Decide(BattleUnit self, IReadOnlyList<BattleUnit> players, Random rng)

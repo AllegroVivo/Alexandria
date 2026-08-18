@@ -13,4 +13,7 @@ public interface IEbHost
     Int32 RandomBit(Int32 mask); // B_SELECT — bite 2
     void Attack(Int32 attackId); // BTLCMD — target rides in SysList[0]
     void BattleDialog(Int32 textId); // MESB 0xD0 — fire-and-forget HUD text, never blocks
+    void BattleSet(Int32 verb, Int32 value); // BTLSET 0x4A — the stage verbs
+    void SetTextVariable(Int32 scriptId, Int32 value); // MESVALUE 0x66
+    void AttackSpecial(Int32 attackId); // BTLSEQ 0xE5 — target rides in SysList[0]
 }

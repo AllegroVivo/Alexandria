@@ -7,7 +7,8 @@ public enum AttackOutcome
     Hit,
     CriticalHit,
     Guarded,
-    Absorbed
+    Absorbed,
+    NoEffect
 }
 
 /// <summary>
@@ -15,6 +16,7 @@ public enum AttackOutcome
 /// BattleCalculator.TryPhysicalHit/TryCriticalHit, CalcContext, btl_para.SetDamage).
 /// Note: a base HitRate of 100 can never lose the miss roll (0-99), so basic
 /// attacks are only ever avoided via evade - faithful to the original.
+/// </summary>
 public static class PhysicalAttack
 {
     public const Int32 DamageCap = 9999;

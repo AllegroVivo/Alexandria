@@ -39,165 +39,292 @@ public enum VarType
 /// </summary>
 public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
 {
-    private readonly Byte[] _vars = new Byte[256];      // instance vars (entry.VarCount bytes used)
+    // ---- Thread state (mirror: Obj.ip / Obj.level / Obj.wait + the Call/Return frame stack) ----
+    private const Int32 IdleLevel = 8;
+    private const Int32 WaitForever = 255;
+
+    private EbFunction? _current;
+    private Int32 _pos;
+    private Int32 _level = IdleLevel;
+    private Int32 _wait;
+    private Boolean _yielded;
+    private Int32 _floor;
+    private readonly Stack<(EbFunction Fn, Int32 Pos, Int32 Level, Int32 Wait)> _frames = new();
+
+    private readonly Byte[] _vars = new Byte[256]; // instance vars (entry.VarCount bytes used)
     private readonly EbState _state = state ?? new EbState();
     private readonly Stack<Cell> _calc = new();
 
     private Int32 _memberTarget = -1;
 
+    /// <summary>True while a function is live — suspended at a WAIT still counts.</summary>
+    public Boolean IsRunning => _current is not null;
+
     /// <summary>Read a Byte instance var - counters and flags use single-byte cells.</summary>
     public Int32 Var8(Int32 offset) => _vars[offset];
-     
+
     /// <summary>Read an Int24 instance var - the test window into VM state.</summary>
     public Int32 Var24(Int32 offset)
         => _vars[offset] | _vars[offset + 1] << 8 | (SByte)_vars[offset + 2] << 16;
 
+    /// <summary>Ask this object to run a function at a priority level (mirror:
+    /// EventEngine.Request — only a strictly lower level may interrupt, and a refused
+    /// request is DROPPED, never queued). Battle levels: main loop 7, atb 3,
+    /// reaction 2, counter 1, death 0.</summary>
+    public Boolean Request(UInt16 tag, Int32 level)
+    {
+        if (level >= _level)
+            return false;
+        if (entry.Functions.FirstOrDefault(f => f.Tag == tag) is not { } fn)
+            return false;
+        if (_current is not null)
+            _frames.Push((_current, _pos, _level, _wait));
+        _current = fn;
+        _pos = 0;
+        _level = level;
+        _wait = 0;
+        return true;
+    }
+
+    /// <summary>One frame of this object's thread (mirror: EBin.ProcessCode's head — a
+    /// waiting object burns a frame and yields; 255 waits forever). Runs until the
+    /// script parks at a WAIT or its outermost function returns.</summary>
+    public void Tick()
+    {
+        if (_current is null)
+            return;
+        if (_wait != 0)
+        {
+            if (_wait != WaitForever)
+                _wait--;
+            return;
+        }
+        _yielded = false;
+        Execute();
+    }
+
+    // ---- The expression machine (mirror: EBin.expr) ----
     public void RunFunction(UInt16 tag)
     {
-        var fn = entry.Functions.Single(f => f.Tag == tag);
-        var code = fn.Code;
-        var pos = 0;
+        var saved = (_current, _pos, _level, _wait, _floor);
+        _floor = _frames.Count;
+        _current = entry.Functions.Single(f => f.Tag == tag);
+        _pos = 0;
+        _level = 0;
 
-        while (pos < code.Length)
+        var slices = 0;
+        while (_current is not null)
         {
+            if (++slices > 10_000)
+                throw new InvalidOperationException(
+                    $"tag {tag} never returns — drive it with Request + Tick, not RunFunction");
+            _yielded = false;
+            _wait = 0;
+            Execute();
+        }
+
+        (_current, _pos, _level, _wait, _floor) = saved;
+    }
+
+    /// <summary>Mirror: EventEngine.Return — pop the interrupted function and resume it
+    /// exactly where it stopped, remaining wait and all; an empty stack parks the thread.</summary>
+    private void Return()
+    {
+        if (_frames.Count <= _floor)
+        {
+            _current = null;
+            _level = IdleLevel;
+            return;
+        }
+        (_current, _pos, _level, _wait) = _frames.Pop();
+    }
+
+    /// <summary>One immediate argument, or the expression its flag bit selects instead
+    /// (mirror: EventEngine.getv1 — the statement's flag byte is consumed a bit per arg,
+    /// LSB first). Arg1 is one byte; Arg2 is 16-bit LE, sign-extended.</summary>
+    private Int32 Arg1(Byte[] code, ref Int32 flag)
+    {
+        var expression = (flag & 1) != 0;
+        flag >>= 1;
+        if (!expression)
+            return code[_pos++];
+        RunExpression(code, ref _pos);
+        return Evaluate(Pop());
+    }
+
+    private Int32 Arg2(Byte[] code, ref Int32 flag)
+    {
+        var expression = (flag & 1) != 0;
+        flag >>= 1;
+        if (expression)
+        {
+            RunExpression(code, ref _pos);
+            return Evaluate(Pop());
+        }
+        var value = (Int16)(code[_pos] | code[_pos + 1] << 8);
+        _pos += 2;
+        return value;
+    }
+
+    private void Execute()
+    {
+        var budget = 1_000_000;
+
+        while (_current is not null && !_yielded)
+        {
+            if (--budget == 0)
+                throw new InvalidOperationException(
+                    $"runaway loop in tag {_current.Tag} at @{_current.EntryPoint + _pos}");
+
+            var code = _current.Code;
+            if (_pos >= code.Length)
+            {
+                Return();
+                continue;
+            }
+
             var op = 0;
-            while (pos < code.Length && code[pos] == 0xFF)
+            while (_pos < code.Length && code[_pos] == 0xFF)
             {
                 op += 0x100;
-                pos++;
+                _pos++;
             }
-            op += code[pos++];
+            op += code[_pos++];
 
             switch (op)
             {
                 case Op.Nop:
                     break;
 
-                case Op.Jump: // jump: signed offset
+                case Op.Jump:
                 {
-                    var offset = (Int16)(code[pos] | code[pos + 1] << 8);
-                    pos += 2;
-                    pos += offset;
+                    var offset = (Int16)(code[_pos] | code[_pos + 1] << 8);
+                    _pos += 2;
+                    _pos += offset;
                     break;
                 }
 
-                case Op.IfNot: // ifnot: UNSIGNED offset (vanilla quirk)
+                case Op.IfNot: // UNSIGNED offset — the vanilla quirk vs Jump/If
                 {
                     var condition = Evaluate(Pop());
-                    var offset = (UInt16)(code[pos] | code[pos + 1] << 8);
-                    pos += 2;
+                    var offset = (UInt16)(code[_pos] | code[_pos + 1] << 8);
+                    _pos += 2;
                     if (condition == 0)
-                        pos += offset;
+                        _pos += offset;
                     break;
                 }
 
-                case Op.If: // if: signed offset
+                case Op.If:
                 {
                     var condition = Evaluate(Pop());
-                    var offset = (Int16)(code[pos] | code[pos + 1] << 8);
-                    pos += 2;
+                    var offset = (Int16)(code[_pos] | code[_pos + 1] << 8);
+                    _pos += 2;
                     if (condition != 0)
-                        pos += offset;
+                        _pos += offset;
                     break;
                 }
-                
+
                 case Op.Return:
-                    return;
-                
+                    Return();
+                    break;
+
                 case Op.Eval:
                     _calc.Clear(); // mirror: expr() empties the calc stack at every statement start
-                    RunExpression(code, ref pos);
+                    RunExpression(code, ref _pos);
                     break;
 
-                case Op.SwitchCase: // switch with explicit case values
+                case Op.SwitchCase:
                 {
-                    var basePos = pos;
+                    var basePos = _pos;
                     var selector = Evaluate(Pop()) & 0xFFFF;
-                    var count = code[pos++];
-                    var def = code[pos] | code[pos + 1] << 8;
-                    pos += 2;
+                    var count = code[_pos++];
+                    var def = code[_pos] | code[_pos + 1] << 8;
+                    _pos += 2;
                     var target = def;
                     for (var i = 0; i < count; i++)
                     {
-                        var value = code[pos] | code[pos + 1] << 8;
-                        var offset = code[pos + 2] | code[pos + 3] << 8;
-                        pos += 4;
+                        var value = code[_pos] | code[_pos + 1] << 8;
+                        var offset = code[_pos + 2] | code[_pos + 3] << 8;
+                        _pos += 4;
                         if (value == selector)
                             target = offset;
                     }
-                    pos = basePos + target + 3;
+                    _pos = basePos + target + 3;
                     break;
                 }
 
-                case Op.SwitchRange: // switch over min..min+count−1
+                case Op.SwitchRange:
                 {
-                    var basePos = pos;
+                    var basePos = _pos;
                     var selector = Evaluate(Pop());
-                    var count = code[pos];
-                    var min = (Int16)(code[pos + 1] | code[pos + 2] << 8);
-                    var def = code[pos + 3] | code[pos + 4] << 8;
-                    pos += 5;
+                    var count = code[_pos];
+                    var min = (Int16)(code[_pos + 1] | code[_pos + 2] << 8);
+                    var def = code[_pos + 3] | code[_pos + 4] << 8;
+                    _pos += 5;
                     var target = def;
                     for (var i = 0; i < count; i++)
                     {
-                        var offset = code[pos] | code[pos + 1] << 8;
-                        pos += 2;
+                        var offset = code[_pos] | code[_pos + 1] << 8;
+                        _pos += 2;
                         if (selector == min + i)
                             target = offset;
                     }
-                    pos = basePos + target;
+                    _pos = basePos + target;
                     break;
                 }
 
-                case Op.Wait: // WAIT: park N frames and yield — a run-to-completion call treats them as elapsed
+                case Op.Wait: // park N frames and end the slice; wait 0 is a pure no-op
                 {
-                    var flag = code[pos++];
-                    if ((flag & 1) != 0)
+                    var flag = (Int32)code[_pos++];
+                    var frames = Arg1(code, ref flag);
+                    if (frames != 0)
                     {
-                        RunExpression(code, ref pos);
-                        Pop();
+                        _wait = Math.Min(frames - 1, 253); // vanilla clamps; 254/255 are engine-only
+                        _yielded = true; // even `wait 1` ends the slice
                     }
-                    else
-                        pos++;
                     break;
                 }
 
-                case Op.BattleCommand: // BTLCMD: the script acts
+                case Op.BattleCommand:
                 {
-                    var flag = code[pos++];
-                    Int32 attackId;
-                    if ((flag & 1) != 0)
-                    {
-                        RunExpression(code, ref pos);
-                        attackId = Evaluate(Pop());
-                    }
-                    else
-                        attackId = code[pos++];
-                    host.Attack(attackId);
+                    var flag = (Int32)code[_pos++];
+                    host.Attack(Arg1(code, ref flag));
                     break;
                 }
 
-                case Op.BattleDialog: // MESB "BattleDialog": battle text for ~60 frames — does NOT block (returns 0, no wait)
+                case Op.BattleDialog: // does NOT block (DoEventCode returns 0, no wait)
                 {
-                    var flag = code[pos++];
-                    Int32 textId;
-                    if ((flag & 1) != 0)
-                    {
-                        RunExpression(code, ref pos);
-                        textId = Evaluate(Pop());
-                    }
-                    else
-                    {
-                        textId = (Int16)(code[pos] | code[pos + 1] << 8);
-                        pos += 2;
-                    }
-                    host.BattleDialog(textId);
+                    var flag = (Int32)code[_pos++];
+                    host.BattleDialog(Arg2(code, ref flag));
                     break;
                 }
-                    
+
+                case Op.BattleSet: // BTLSET "RunBattleCode": v1 verb, v2 value
+                {
+                    var flag = (Int32)code[_pos++];
+                    var verb = Arg1(code, ref flag);
+                    host.BattleSet(verb, Arg2(code, ref flag));
+                    break;
+                }
+
+                case Op.SetTextVariable: // MESVALUE: a number the next dialog line interpolates
+                {
+                    var flag = (Int32)code[_pos++];
+                    var scriptId = Arg1(code, ref flag);
+                    host.SetTextVariable(scriptId, Arg2(code, ref flag));
+                    break;
+                }
+
+                case Op.AttackSpecial: // BTLSEQ: performs a move now, outside the command queue
+                {
+                    var flag = (Int32)code[_pos++];
+                    host.AttackSpecial(Arg1(code, ref flag));
+                    break;
+                }
+
                 default:
                     throw new NotSupportedException(
-                        $"opcode 0x{op:X2} at @{fn.EntryPoint + pos - 1} — teach me");
+                        $"opcode 0x{op:X2} at @{_current.EntryPoint + _pos - 1} — teach me");
             }
         }
     }
@@ -503,7 +630,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
                 throw new NotSupportedException($"expression operator {op} — teach me");
         }
     }
-    
+
     // ---- Tagged cells (mirror: EvaluateValueExpression / SetVariableValue) ----
     private void Push(Cell cell) => _calc.Push(cell);
     private Cell Pop() => _calc.Pop();
@@ -602,22 +729,25 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
             _ => pool[ofs] | pool[ofs + 1] << 8
         };
     }
-    
+
     /// <summary>Statement opcodes, named as the disassembler prints them
     /// (mirror: EBin.event_code_binary; vanilla mnemonics in comments).</summary>
     private static class Op
     {
         public const Int32 Nop = 0x00;
-        public const Int32 Jump = 0x01;          // bra — SIGNED i16 offset
-        public const Int32 IfNot = 0x02;         // beq — UNSIGNED u16 offset (vanilla quirk)
-        public const Int32 If = 0x03;            // bne — SIGNED i16 offset
+        public const Int32 Jump = 0x01; // bra — SIGNED i16 offset
+        public const Int32 IfNot = 0x02; // beq — UNSIGNED u16 offset (vanilla quirk)
+        public const Int32 If = 0x03; // bne — SIGNED i16 offset
         public const Int32 Return = 0x04;
-        public const Int32 Eval = 0x05;          // EXPR
-        public const Int32 SwitchCase = 0x06;    // explicit case values
-        public const Int32 SwitchRange = 0x0B;   // min..min+count−1
-        public const Int32 Wait = 0x22;          // WAIT — park N frames
+        public const Int32 Eval = 0x05; // EXPR
+        public const Int32 SwitchCase = 0x06; // explicit case values
+        public const Int32 SwitchRange = 0x0B; // min..min+count−1
+        public const Int32 Wait = 0x22; // WAIT — park N frames
         public const Int32 BattleCommand = 0x38; // BTLCMD — the script acts
-        public const Int32 BattleDialog = 0xD0;  // MESB — HUD text, never blocks
+        public const Int32 BattleSet = 0x4A; // BTLSET — run a battle code
+        public const Int32 SetTextVariable = 0x66; // MESVALUE — fill a text variable
+        public const Int32 BattleDialog = 0xD0; // MESB — HUD text, never blocks
+        public const Int32 AttackSpecial = 0xE5; // BTLSEQ — instant scripted move on SV_Target
     }
 
     /// <summary>Expression operators (mirror: EBin.op_binary, B_ prefix dropped).
@@ -626,7 +756,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
     private static class ExprOp
     {
         public const Int32 End = 0x7F;
-        
+
         public const Int32 PostPlus = 4;
         public const Int32 PostMinus = 5;
         public const Int32 PrePlus = 6;
@@ -699,15 +829,15 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         public const Int32 Cast16U = 73;
         public const Int32 Lmax = 75;
         public const Int32 Lmin = 76;
-        public const Int32 Select = 77;        // RandomBit
+        public const Int32 Select = 77; // RandomBit
         public const Int32 AndE = 84;
         public const Int32 NandE = 85;
         public const Int32 XorE = 86;
         public const Int32 OrE = 87;
         public const Int32 SysList = 121;
         public const Int32 Sysvar = 122;
-        public const Int32 Const = 125;        // i16
-        public const Int32 Const4 = 126;       // 26-bit signed
+        public const Int32 Const = 125; // i16
+        public const Int32 Const4 = 126; // 26-bit signed
         public const Int32 MemoriaEscape = 0xD3;
     }
 
@@ -722,7 +852,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         public Int32 SignedValue => Bits << 6 >> 6; // Int26 pyload, sign-extended
         public Int32 Offset => Bits & 0xFFFF; // pool byte offset
         public Int32 StatID => Bits & 0xFF; // Member payload (write side uses t0 & 0xFF)
-        public Int32 Slot => Bits&0xFF; // SysList slot
+        public Int32 Slot => Bits & 0xFF; // SysList slot
 
         public static Cell Value(Int32 v) => new(v & 0x3FFFFFF | (Int32)VarSource.Int26 << 26);
         public static Cell MemberRef(Int32 statId) => new((Int32)VarSource.Member << 26 | statId);
@@ -731,6 +861,6 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         /// <summary>A var-spec byte ≥0x80: bits 0-1 source, 2-4 type, 5 = 16-bit index.</summary>
         public static Cell FromSpec(Int32 spec, Int32 index)
             => new((spec & 3) << 26 | (spec & 0x1C) << 27 | index);
-        
+
     }
 }

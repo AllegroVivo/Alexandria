@@ -50,12 +50,16 @@ public static class BattleCommand
             BuildCharacter(db, "Vivi", level)
         };
         var host = new EngineHost(party, enemies, rng);
+        var state = new EbState();
+        EbVM? director;
         using (var eb = new BinaryReader(File.OpenRead(
                    Path.Combine(sceneDir, Path.GetFileName(sceneDir) + ".eb"))))
         {
             var script = EbScript.Read(eb);
+            director = new EbVM(script.Entries[0], host, state);
+            director.Request(1, 7);
             for (var i = 0; i < enemies.Count; i++)
-                enemies[i].Brain = new ScriptedBrain(script.Entries[i + 1], host, selfLine: 4 + i);
+                enemies[i].Brain = new ScriptedBrain(script.Entries[i + 1], host, selfLine: 4 + i, state);
         }
 
         var sceneIDS = SceneIDs.Load(@"C:\Dev\Memoria\FF9Data\SceneData.csv");
@@ -78,7 +82,8 @@ public static class BattleCommand
                 s => new StatusTiming(s.OprCount, s.ContiCount,
                     (BattleStatus)s.ClearOnApply, (BattleStatus)s.ImmunityProvided));
 
-        var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng, statusTable: statusTable);
+        var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng,
+            statusTable: statusTable, host: host, director: director);
         while (engine.TickUntilReady() is { } ready)
         {
             NarrateTicks(engine);
@@ -89,6 +94,9 @@ public static class BattleCommand
                 foreach (var id in host.PendingDialogs)
                     Console.WriteLine($"  『{(battleText is not null && id < battleText.Count ? battleText[id] : $"battle text {id}")}』");
                 host.PendingDialogs.Clear();
+                foreach (var (attackId, targetMask) in host.PendingSpecials)
+                    Console.WriteLine($"  ‹{attackNames.GetValueOrDefault(attackId, $"attack {attackId}")}›");
+                host.PendingSpecials.Clear();
             }
             else
                 Narrate(TakePlayerTurn(db, engine, ready, spellbook));
@@ -102,7 +110,15 @@ public static class BattleCommand
         }
         NarrateTicks(engine);
 
-        Console.WriteLine(engine.Victory ? "\n*** VICTORY! ***" : "\n*** The party has fallen... ***");
+        Console.WriteLine(host.Result switch
+        {
+            1 or 2 => "\n*** VICTORY! ***",
+            7 => "\n*** The enemy escapes! ***",
+            3 or 6 => "\n*** The party has fallen... ***",
+            _ => engine.Victory ? "\n*** VICTORY! ***" : "\n*** The party has fallen... ***"
+        });
+        if (host.GilEarned > 0)
+            Console.WriteLine($"Received {host.GilEarned} gil!");
     }
 
     private static BattleUnit BuildCharacter(RulesDB db, String name, Int32 level)
@@ -142,6 +158,8 @@ public static class BattleCommand
             AttackOutcome.Guarded => $"{e.Target.Name} nulls it — no effect!",
             AttackOutcome.Absorbed => $"{e.Target.Name} drinks it in — absorbs {e.Result.Damage} HP!",
             AttackOutcome.Hit when e.Result.Damage == 0 => $"{e.Target.Name} succumbs!",
+            AttackOutcome.NoEffect when e.Attack?.ScriptID == 64 => $"{e.Actor.Name} is posturing — pure theatre.",
+            AttackOutcome.NoEffect => $"{e.Actor.Name}'s {e.Attack?.Name} fizzles (script {e.Attack?.ScriptID} not implemented).",
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
         if (e.StatusesAdded != 0 && e.Result.Damage > 0)

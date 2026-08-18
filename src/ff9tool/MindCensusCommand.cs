@@ -14,7 +14,7 @@ public static class MindCensusCommand
 
     public static void Run()
     {
-        Int32 scenes = 0, minds = 0, clean = 0, reactions = 0, reactionsClean = 0;
+        Int32 scenes = 0, minds = 0, clean = 0, reactions = 0, reactionsClean = 0, loops = 0, loopsClean = 0;
         var wishlist = new Dictionary<String, Int32>();
         var examples = new Dictionary<String, String>();
 
@@ -36,7 +36,7 @@ public static class MindCensusCommand
 
             foreach (var entry in script.Entries)
             {
-                if(entry.Functions.All(f => f.Tag != 5))
+                if (entry.Functions.All(f => f.Tag != 5))
                     continue;
                 minds++;
 
@@ -44,11 +44,41 @@ public static class MindCensusCommand
                 var host = new EngineHost(party, enemies, rng);
                 var selfLine = 4 + Math.Min(Math.Max(entry.Index - 1, 0), enemies.Count - 1);
                 var vm = new EbVM(entry, host);
+
                 try
                 {
                     host.BeginSlice(selfLine);
                     if (entry.Functions.Any(f => f.Tag == 0))
                         vm.RunFunction(0);
+                }
+                catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
+                {
+                    wishlist[ex.Message] = wishlist.GetValueOrDefault(ex.Message) + 1;
+                    examples.TryAdd(ex.Message, $"{name}[{entry.Index}] init");
+                }
+                
+                if (entry.Functions.Any(f => f.Tag == 1))
+                {
+                    loops++;
+                    try
+                    {
+                        vm.Request(1, 7);
+                        for (var frame = 0; frame < 120; frame++)
+                        {
+                            host.BeginSlice(selfLine);
+                            vm.Tick();
+                        }
+                        loopsClean++;
+                    }
+                    catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
+                    {
+                        wishlist[ex.Message] = wishlist.GetValueOrDefault(ex.Message) + 1;
+                        examples.TryAdd(ex.Message, $"{name}[{entry.Index}] tag1");
+                    }
+                }
+
+                try
+                {
                     for (var turn = 0; turn < 4; turn++)
                     {
                         host.BeginSlice(selfLine);
@@ -71,7 +101,7 @@ public static class MindCensusCommand
                     try
                     {
                         host.BeginSlice(selfLine);
-                        host.SetSysList(0, 0b0001); // SV_0 = the provoking attacker (player line 0)
+                        host.SetSysList(0, 0b0001);
                         host.SeedReaction(1, 0);
                         vm.RunFunction(tag);
                         reactionsClean++;
@@ -88,6 +118,7 @@ public static class MindCensusCommand
         Console.WriteLine($"{scenes} scenes, {minds} minds (entries with an atb function)");
         Console.WriteLine($"{clean}/{minds} ran init + four turns clean");
         Console.WriteLine($"{reactionsClean}/{reactions} reaction functions (counter/death) ran clean");
+        Console.WriteLine($"{loopsClean}/{loops} main loops survived 120 frames");
         Console.WriteLine("wishlist (blocked):");
         foreach (var (message, count) in wishlist.OrderByDescending(w => w.Value).Take(20))
             Console.WriteLine($"  {count,4}× {message}  e.g. {examples[message]}");

@@ -14,6 +14,9 @@ public class EbVMTests
         public void Attack(Int32 attackId) => throw new NotSupportedException();
         public void BattleDialog(Int32 textId) => throw new NotImplementedException();
         public void WriteStat(Int32 mask, Int32 stat, Int32 value) => throw new NotSupportedException();
+        public void BattleSet(Int32 verb, Int32 value) => throw new NotSupportedException();
+        public void SetTextVariable(Int32 scriptId, Int32 value) => throw new NotSupportedException();
+        public void AttackSpecial(Int32 attackId) => throw new NotSupportedException();
     }
 
     private static EbVM TypeC(params Int32[] rolls)

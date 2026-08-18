@@ -1,3 +1,5 @@
+using Alexandria.Formats.Scripts;
+
 namespace Alexandria.Battle;
 
 /// <summary>
@@ -11,12 +13,17 @@ public sealed class BattleEngine
     private readonly Random _rng;
     private readonly Int32 _coefficient;
     private readonly EngineHost? _host;
+
+    private const Int32 OpeningBudget = 600; // 40s
+
     private IReadOnlyDictionary<BattleStatus, StatusTiming> _statusTable;
     private Boolean _reacting;
-    
+    private readonly EbVM? _director;
+    private Int32 _openingFrames;
+
     public List<BattleUnit> Players { get; }
     public List<BattleUnit> Enemies { get; }
-    
+
     public List<StatusTickEvent> PendingStatusEvents { get; } = [];
 
     /// <summary>Reactions fired by the last resolved action, for the caller to narrate
@@ -25,7 +32,8 @@ public sealed class BattleEngine
 
     public BattleEngine(List<BattleUnit> players, List<BattleUnit> enemies,
         EncounterKind kind, Random rng, Int32 coefficient = ATBClock.NormalCoefficient,
-        IReadOnlyDictionary<BattleStatus, StatusTiming>? statusTable = null, EngineHost? host = null)
+        IReadOnlyDictionary<BattleStatus, StatusTiming>? statusTable = null, EngineHost? host = null,
+        EbVM? director = null)
     {
         Players = players;
         Enemies = enemies;
@@ -33,12 +41,13 @@ public sealed class BattleEngine
         _coefficient = coefficient;
         _statusTable = statusTable ?? StatusTicker.DefaultTable;
         _host = host;
+        _director = director;
         ATBClock.PlaceInitialGauges(players, enemies, kind, rng);
     }
 
     public Boolean Victory => Enemies.All(e => !e.IsAlive);
     public Boolean Defeat => Players.All(p => !p.IsAlive);
-    public Boolean IsOver => Victory || Defeat;
+    public Boolean IsOver => Victory || Defeat || _host?.Result is not null;
 
     private IEnumerable<BattleUnit> AllUnits => Players.Concat(Enemies);
 
@@ -52,6 +61,14 @@ public sealed class BattleEngine
             if (ready is not null)
                 return ready;
 
+            TickScripts();
+            if (_host is not null && _host.Phase != EngineHost.PhaseNormal)
+            {
+                if (++_openingFrames <= OpeningBudget)
+                    continue;
+                _host.Phase = EngineHost.PhaseNormal;
+            }
+
             foreach (var unit in AllUnits)
             {
                 ATBClock.Tick(unit, _coefficient);
@@ -61,10 +78,25 @@ public sealed class BattleEngine
         return null;
     }
 
+    /// <summary>One frame of every script thread (mirror: ProcessEvents running each
+    /// battle object per frame).</summary>
+    private void TickScripts()
+    {
+        if (_host is null)
+            return;
+        if (_director is not null)
+        {
+            _host.BeginSlice(8);
+            _director.Tick();
+        }
+        foreach (var unit in AllUnits)
+            (unit.Brain as ScriptedBrain)?.Tick();
+    }
+
     public Boolean IsEnemy(BattleUnit unit) => Enemies.Contains(unit);
 
     /// <summary>Basic attack + damage application + gauge reset: one resolved turn.</summary>
-    public BattleEvent ExecuteAttack(BattleUnit attacker, BattleUnit target, 
+    public BattleEvent ExecuteAttack(BattleUnit attacker, BattleUnit target,
         Int32? power = null, Element? element = null)
     {
         var result = PhysicalAttack.Execute(
@@ -79,7 +111,7 @@ public sealed class BattleEngine
     }
 
     /// <summary>Cast + MP spend + damage + gauge reset: one resolved magic turn.</summary>
-    public BattleEvent ExecuteSpell(BattleUnit caster, BattleUnit target, Int32 spellPower, 
+    public BattleEvent ExecuteSpell(BattleUnit caster, BattleUnit target, Int32 spellPower,
         Int32 mpCost, UInt32 riderStatuses = 0, Int32 riderRate = 0,
         Element element = Element.None)
     {
@@ -132,35 +164,17 @@ public sealed class BattleEngine
     public BattleEvent ExecuteEnemyTurn(BattleUnit enemy)
     {
         if (enemy.Brain is not null
-            &&enemy.Brain.Decide(enemy, Players, _rng) is var(attackId, chosen)
-            && enemy.Attacks.FirstOrDefault(a=>a.ID==attackId) is {} scripted)
-        {
-            enemy.CurrentMP-=scripted.MP;
-            var ev = scripted.ScriptID switch
-            {
-                9 => ExecuteSpell(enemy, chosen, scripted.Power, 0, scripted.StatusMask, scripted.Rate, scripted.Elements),
-                11 => ExecuteStatusSpell(enemy, chosen, scripted.StatusMask, scripted.Rate, 0),
-                _ => ExecuteAttack(enemy, chosen, scripted.Power, scripted.Elements)
-            };
-            return ev with { Attack = scripted };
-        }
-        
+            && enemy.Brain.Decide(enemy, Players, _rng) is var (attackId, chosen)
+            && enemy.Attacks.FirstOrDefault(a => a.ID == attackId) is { } scripted)
+            return Resolve(enemy, chosen, scripted);
+
         var living = Players.Where(p => p.IsAlive).ToList();
         var target = living[_rng.Rand16() % living.Count];
 
         var usable = enemy.Attacks.Where(a => a.MP <= enemy.CurrentMP).ToList();
         if (usable.Count == 0)
             return ExecuteAttack(enemy, target);
-
-        var attack = usable[_rng.Rand16() % usable.Count];
-        enemy.CurrentMP -= attack.MP;
-        var e = attack.ScriptID switch
-        {
-            9 => ExecuteSpell(enemy, target, attack.Power, 0, attack.StatusMask, attack.Rate, attack.Elements),
-            11 => ExecuteStatusSpell(enemy, target, attack.StatusMask, attack.Rate, 0),
-            _ => ExecuteAttack(enemy, target, attack.Power, attack.Elements)
-        };
-        return e with { Attack = attack };
+        return Resolve(enemy, target, usable[_rng.Rand16() % usable.Count]);
     }
 
     /// <summary>Mirror: SBattleCalculator.CalcResult's tail — every resolved
@@ -188,12 +202,36 @@ public sealed class BattleEngine
                 target.Attacks.FirstOrDefault(a => a.ID == attackId) is not { } retaliation)
                 return;
             var chosen = _host?.UnitFromMask(_host.SysList(0)) ?? attacker;
-            PendingReactions.Add(ExecuteAttack(target, chosen, retaliation.Power, retaliation.Elements) with { Attack = retaliation });
+            PendingReactions.Add(Resolve(target, chosen, retaliation));
         }
         finally
         {
             _reacting = false;
         }
+    }
+
+    /// <summary>Resolve an enemy attack through its ability-script id, the way vanilla
+    /// dispatches via ScriptsLoader.GetBattleScript — ids we implement do their work,
+    /// and an id with no script resolves to nothing.</summary>
+    private BattleEvent Resolve(BattleUnit actor, BattleUnit target, EnemyAttack attack)
+    {
+        actor.CurrentMP -= attack.MP;
+        var ev = attack.ScriptID switch
+        {
+            8 => ExecuteAttack(actor, target, attack.Power, attack.Elements),
+            9 => ExecuteSpell(actor, target, attack.Power, 0, attack.StatusMask, attack.Rate, attack.Elements),
+            11 => ExecuteStatusSpell(actor, target, attack.StatusMask, attack.Rate, 0),
+            _ => Choreography(actor, target)
+        };
+        return ev with { Attack = attack };
+    }
+
+    /// <summary>An attack whose script we do not run: the animation plays, nothing else
+    /// happens, and the actor still spends its turn.</summary>
+    private BattleEvent Choreography(BattleUnit actor, BattleUnit target)
+    {
+        ATBClock.ResetAfterAction(actor);
+        return new BattleEvent(actor, target, new AttackResult(AttackOutcome.NoEffect, 0));
     }
 }
 
