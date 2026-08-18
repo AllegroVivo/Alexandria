@@ -8,14 +8,15 @@ public enum AttackOutcome
     CriticalHit,
     Guarded,
     Absorbed,
-    NoEffect
+    NoEffect,
+    Healed
 }
 
 /// <summary>
 /// Vanilla basic physical attack (mirrors: BattleCaster.SetLowPhysicalAttack,
 /// BattleCalculator.TryPhysicalHit/TryCriticalHit, CalcContext, btl_para.SetDamage).
 /// Note: a base HitRate of 100 can never lose the miss roll (0-99), so basic
-/// attacks are only ever avoided via evade - faithful to the original.
+/// attacks are only ever avoided via evade.
 /// </summary>
 public static class PhysicalAttack
 {
@@ -24,20 +25,23 @@ public static class PhysicalAttack
     public static AttackResult Execute(
         BattleUnit attacker, BattleUnit target, Int32 attackPower,
         Random rng, Boolean enemyStyle = false, Int32 damageModifiers = 0,
-        Element element = Element.None)
+        Element element = Element.None, Boolean precise = false)
     {
-        // hit roll first (TryPhysicalHit): Blind/Confuse caster and Defend target halve it
-        var hitRate = 100;
-        if (attacker.Has(BattleStatus.Blind | BattleStatus.Confuse))
-            hitRate /= 2;
-        if (target.Has(BattleStatus.Defend))
-            hitRate /= 2;
-        if (hitRate <= rng.Rand16() % 100)
-            return new AttackResult(AttackOutcome.Miss, 0);
+        if (!precise)
+        {
+            // hit roll first (TryPhysicalHit): Blind/Confuse caster and Defend target halve it
+            var hitRate = 100;
+            if (attacker.Has(BattleStatus.Blind | BattleStatus.Confuse))
+                hitRate /= 2;
+            if (target.Has(BattleStatus.Defend))
+                hitRate /= 2;
+            if (hitRate <= rng.Rand16() % 100)
+                return new AttackResult(AttackOutcome.Miss, 0);
         
-        // evade roll: evaded when target.PhysicalEvade > rand16 % 100
-        if (target.PhysicalEvade > rng.Rand16() % 100)
-            return new AttackResult(AttackOutcome.Evaded, 0);
+            // evade roll: evaded when target.PhysicalEvade > rand16 % 100
+            if (target.PhysicalEvade > rng.Rand16() % 100)
+                return new AttackResult(AttackOutcome.Evaded, 0);
+        }
         
         // attack roll: Str + rand16 % (1 + ((Level + Str) >> shift)); players >>3, enemies >>2
         var shift = enemyStyle ? 2 : 3;
@@ -52,7 +56,7 @@ public static class PhysicalAttack
         // crit: q = Spirit >> 2; crit when rand16 % q > rand16 % 100 (~Spirit/4 %)
         var crit = false;
         var q = attacker.Spirit >> 2;
-        if (q != 0 && rng.Rand16() % q > rng.Rand16() % 100)
+        if (!precise && q != 0 && rng.Rand16() % q > rng.Rand16() % 100)
         {
             attack *= 2;
             crit = true;

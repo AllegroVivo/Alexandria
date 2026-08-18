@@ -8,7 +8,9 @@ public static class AbilityCensusCommand
 {
     private const String SceneRoot = @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene";
 
-    private static readonly HashSet<Int32> Implemented = [8, 9, 11];
+    private static readonly HashSet<Int32> Implemented = [
+        8, 9, 10, 11, 12, 16, 17, 25, 27, 30, 100, 103, 109
+    ];
 
     public static void Run()
     {
@@ -27,8 +29,7 @@ public static class AbilityCensusCommand
                 .ToDictionary(s => Int32.Parse(s[..2]), s => s[3..]);
             scenes++;
 
-            foreach (var roster in rosters.Values
-                     )
+            foreach (var roster in rosters.Values)
             foreach (var n in roster.Where(n => n < scene.Attacks.Count))
             {
                 var script = (Int32)scene.Attacks[n].ScriptID;

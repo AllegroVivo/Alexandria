@@ -160,6 +160,8 @@ public static class BattleCommand
             AttackOutcome.Hit when e.Result.Damage == 0 => $"{e.Target.Name} succumbs!",
             AttackOutcome.NoEffect when e.Attack?.ScriptID == 64 => $"{e.Actor.Name} is posturing — pure theatre.",
             AttackOutcome.NoEffect => $"{e.Actor.Name}'s {e.Attack?.Name} fizzles (script {e.Attack?.ScriptID} not implemented).",
+            AttackOutcome.Healed when e.Result.Damage > 0 => $"{e.Target.Name} recovers {e.Result.Damage} HP!",
+            AttackOutcome.Healed => $"{e.Target.Name} is restored.",
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
         if (e.StatusesAdded != 0 && e.Result.Damage > 0)

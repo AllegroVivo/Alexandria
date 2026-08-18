@@ -97,11 +97,12 @@ public sealed class BattleEngine
 
     /// <summary>Basic attack + damage application + gauge reset: one resolved turn.</summary>
     public BattleEvent ExecuteAttack(BattleUnit attacker, BattleUnit target,
-        Int32? power = null, Element? element = null)
+        Int32? power = null, Element? element = null, Boolean precise = false)
     {
         var result = PhysicalAttack.Execute(
             attacker, target, power ?? attacker.AttackPower, _rng,
-            enemyStyle: IsEnemy(attacker), element: element ?? attacker.WeaponElement);
+            enemyStyle: IsEnemy(attacker), element: element ?? attacker.WeaponElement,
+            precise: precise);
         PhysicalAttack.Apply(target, result);
         if (result.Damage > 0 && target.Has(BattleStatus.Sleep))
             StatusApplication.Remove(target, BattleStatus.Sleep);
@@ -220,7 +221,17 @@ public sealed class BattleEngine
         {
             8 => ExecuteAttack(actor, target, attack.Power, attack.Elements),
             9 => ExecuteSpell(actor, target, attack.Power, 0, attack.StatusMask, attack.Rate, attack.Elements),
+            10 => ExecuteHeal(actor, target, attack.Power),
             11 => ExecuteStatusSpell(actor, target, attack.StatusMask, attack.Rate, 0),
+            12 => ExecuteCure(actor, target, attack.StatusMask),
+            16 => ExecuteDrainHP(actor, target, attack.Power, attack.StatusMask, attack.Rate, attack.Elements),
+            17 => ExecuteGravity(actor, target, attack.Power, attack.Rate),
+            25 => ExecuteDirectHP(actor, target, attack.Power, attack.Rate, precise: true),
+            27 => ExecuteDirectHP(actor, target, attack.Power, attack.Rate, precise: false),
+            30 => ExecuteWhiteWind(actor, target, attack.Power),
+            100 => ExecuteAttack(actor, target, attack.Power, attack.Elements, precise: true),
+            103 => ExecuteBuff(actor, target, attack.StatusMask),
+            109 => ExecuteMini(actor, target, attack.StatusMask, attack.Rate),
             _ => Choreography(actor, target)
         };
         return ev with { Attack = attack };
@@ -232,6 +243,133 @@ public sealed class BattleEngine
     {
         ATBClock.ResetAfterAction(actor);
         return new BattleEvent(actor, target, new AttackResult(AttackOutcome.NoEffect, 0));
+    }
+
+    /// <summary>Mirror: BattleCalculator.MagicAccuracy + TryMagicHit — the ability's own
+    /// rate plus Magic/4 plus the level difference, clamped to 1..100 and halved by Shell.
+    /// </summary>
+    private AttackOutcome MagicRoll(BattleUnit caster, BattleUnit target, Int32 baseRate)
+    {
+        var hitRate = Math.Clamp(baseRate + (caster.Magic >> 2) + caster.Level - target.Level, 1, 100);
+        if (target.Has(BattleStatus.Shell))
+            hitRate /= 2;
+        if (hitRate <= _rng.Rand16() % 100)
+            return AttackOutcome.Miss;
+        if (target.MagicalEvade > _rng.Rand16() % 100)
+            return AttackOutcome.Evaded;
+        return AttackOutcome.Hit;
+    }
+
+    /// <summary>Proportional damage (mirror: 0017_MagicGravityDamageScript →
+    /// CalcProportionDamage): a fixed percentage of the target's MAXIMUM HP, capped at
+    /// 100%.</summary>
+    public BattleEvent ExecuteGravity(BattleUnit caster, BattleUnit target, Int32 power, Int32 rate)
+    {
+        var outcome = MagicRoll(caster, target, rate);
+        var damage = 0;
+        if (outcome == AttackOutcome.Hit)
+        {
+            damage = target.MaxHP * Math.Min(power, 100) / 100;
+            target.CurrentHP = Math.Max(0, target.CurrentHP - damage);
+        }
+        ATBClock.ResetAfterAction(caster);
+        Provoke(caster, target, 22);
+        return new BattleEvent(caster, target, new AttackResult(outcome, damage));
+    }
+
+    /// <summary>Direct HP (mirror: BattleCalculator.TryDirectHPDamage) — the target's HP
+    /// is SET to the ability's power, not reduced by it.</summary>
+    public BattleEvent ExecuteDirectHP(BattleUnit caster, BattleUnit target, Int32 power, Int32 rate, Boolean precise)
+    {
+        var outcome = precise ? AttackOutcome.Hit : MagicRoll(caster, target, rate);
+        var damage = 0;
+        if (outcome == AttackOutcome.Hit)
+        {
+            if (target.Has(BattleStatus.Death))
+                outcome = AttackOutcome.Miss;
+            else
+            {
+                damage = Math.Max(0, target.CurrentHP - power);
+                target.CurrentHP = power;
+            }
+        }
+        ATBClock.ResetAfterAction(caster);
+        Provoke(caster, target, 22);
+        return new BattleEvent(caster, target, new AttackResult(outcome, damage));
+    }
+
+    /// <summary>Positive statuses (mirror: 0103 → TryAlterCommandStatuses): buffs are
+    /// applied outright, with no accuracy roll and no evade.</summary>
+    public BattleEvent ExecuteBuff(BattleUnit caster, BattleUnit target, UInt32 statusMask)
+    {
+        var landed = StatusApplication.Apply(target, (BattleStatus)statusMask, _statusTable);
+        ATBClock.ResetAfterAction(caster);
+        Provoke(caster, target, 22);
+        return new BattleEvent(caster, target, new AttackResult(AttackOutcome.Hit, 0), landed);
+    }
+
+    /// <summary>Drain HP (mirror: 0016_DrainHpScript): ordinary magic damage, then the
+    /// caster recovers exactly what the target lost. Divergence: that flow is inverted
+    /// against a Zombie target.</summary>
+    public BattleEvent ExecuteDrainHP(BattleUnit caster, BattleUnit target, Int32 power, UInt32 statusMask, Int32 rate, Element element)
+    {
+        var ev = ExecuteSpell(caster, target, power, 0, statusMask, rate, element);
+        if (ev.Result is { Outcome: AttackOutcome.Hit, Damage: > 0 })
+            caster.CurrentHP = Math.Min(caster.MaxHP, caster.CurrentHP + ev.Result.Damage);
+        return ev;
+    }
+
+    /// <summary>Magic healing (mirror: 0010_MagicRecoveryScript → CalcHpMagicRecovery):
+    /// the ability's power times the caster's magic-attack roll.</summary>
+    public BattleEvent ExecuteHeal(BattleUnit caster, BattleUnit target, Int32 power)
+    {
+        var attack = caster.MaxHP + _rng.Rand16() % (1 + ((caster.Level + caster.Magic) >> 3));
+        if (caster.Has(BattleStatus.Mini))
+            attack >>= 1;
+        var healed = Math.Min(Math.Min(power * attack, MagicAttack.DamageCap), target.MaxHP - target.CurrentHP);
+        target.CurrentHP += healed;
+        ATBClock.ResetAfterAction(caster);
+        return new BattleEvent(caster, target, new AttackResult(AttackOutcome.Healed, healed));
+    }
+
+    /// <summary>White Wind (mirror: 0030_WhiteWindScript): a share of the CASTER's maximum
+    /// HP — a third of it when the ability's power is 0, which is what the vanilla data
+    /// carries.</summary>
+    public BattleEvent ExecuteWhiteWind(BattleUnit caster, BattleUnit target, Int32 power)
+    {
+        var amount = power == 0 ? caster.MaxHP / 2 : caster.MaxHP * power / 100;
+        var healed = Math.Min(amount, target.MaxHP - target.CurrentHP);
+        target.CurrentHP += healed;
+        ATBClock.ResetAfterAction(caster);
+        return new BattleEvent(caster, target, new AttackResult(AttackOutcome.Healed, healed));
+    }
+
+    /// <summary>Status cure (mirror: 0012_MagicCureStatusScript → TryRemoveAbilityStatuses):
+    /// the listed statuses are lifted outright, and if the target carried none of them the
+    /// ability registers a miss.</summary>
+    public BattleEvent ExecuteCure(BattleUnit caster, BattleUnit target, UInt32 statusMask)
+    {
+        var present = target.Statuses & (BattleStatus)statusMask;
+        if (present != 0)
+            StatusApplication.Remove(target, present);
+        ATBClock.ResetAfterAction(caster);
+        return new BattleEvent(caster, target,
+            new AttackResult(present != 0 ? AttackOutcome.Healed : AttackOutcome.Miss, 0));
+    }
+
+    /// <summary>Mini (mirror: 0109_MiniScript): a target already shrunk is re-hit with no
+    /// roll at all — that is how the spell reliably un-shrinks.</summary>
+    public BattleEvent ExecuteMini(BattleUnit caster, BattleUnit target, UInt32 statusMask, Int32 rate)
+    {
+        var outcome = target.Has(BattleStatus.Mini)
+            ? AttackOutcome.Hit
+            : MagicRoll(caster, target, rate);
+        BattleStatus landed = 0;
+        if (outcome == AttackOutcome.Hit)
+            landed = StatusApplication.Apply(target, (BattleStatus)statusMask, _statusTable);
+        ATBClock.ResetAfterAction(caster);
+        Provoke(caster, target, 22);
+        return new BattleEvent(caster, target, new AttackResult(outcome, 0), landed);
     }
 }
 
