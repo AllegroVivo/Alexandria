@@ -11,8 +11,11 @@ switch (args.Length)
     case > 0 when args[0] == "scripts":
         ScriptCommand.Run([.. args.Skip(1)]);
         return;
-    case >0 when args[0]== "minds":
+    case > 0 when args[0] == "minds":
         MindCensusCommand.Run();
+        return;
+    case > 0 when args[0] == "abilities":
+        AbilityCensusCommand.Run();
         return;
 }
 
@@ -72,4 +75,3 @@ public sealed record MonsterInfo
     public required UInt16 MaxHP;
     public required String SceneFolder;
 }
-
