@@ -10,10 +10,10 @@ public static class MagicAttack
 
     public static AttackResult Execute(BattleUnit caster, BattleUnit target, Int32 spellPower,
         Random rng, Boolean multiTarget = false, Int32 damageModifiers = 0,
-        Element element = Element.None)
+        Element element = Element.None, Int32? attackOverride = null, Boolean ignoreDefense = false)
     {
-        var attack = caster.Magic
-                     + rng.Rand16() % (1 + ((caster.Level + caster.Magic) >> 3));
+        var attack = attackOverride
+                     ?? caster.Magic + rng.Rand16() % (1 + ((caster.Level + caster.Magic) >> 3));
 
         if ((element & target.GuardElements) != 0)
             return new AttackResult(AttackOutcome.Guarded, 0);
@@ -43,7 +43,7 @@ public static class MagicAttack
             attack = modifiers > 0 ? attack * 3 >> 1 : attack >> 1;
 
         var damage = Math.Max(attack, 1)
-                     * Math.Max(spellPower - (absorbed ? 0 : target.MagicalDefense), 1);
+                     * Math.Max(spellPower - (absorbed || ignoreDefense ? 0 : target.MagicalDefense), 1);
         return new AttackResult(absorbed ? AttackOutcome.Absorbed : AttackOutcome.Hit,
             Math.Min(damage, DamageCap));
     }

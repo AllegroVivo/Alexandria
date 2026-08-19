@@ -33,6 +33,7 @@ public sealed class BattleEngine
         AbilityScript.Revive, 
         AbilityScript.DrainHp,
         AbilityScript.MagicGravityDamage, 
+        AbilityScript.Meteorite,
         AbilityScript.PreciseDirectHPDamage, 
         AbilityScript.DirectHPDamage,
         AbilityScript.WhiteWind,
@@ -159,11 +160,13 @@ public sealed class BattleEngine
     /// <summary>Cast + MP spend + damage + gauge reset: one resolved magic turn.</summary>
     public BattleEvent ExecuteSpell(BattleUnit caster, BattleUnit target, Int32 spellPower,
         Int32 mpCost, UInt32 riderStatuses = 0, Int32 riderRate = 0,
-        Element element = Element.None, Boolean multiTarget = false)
+        Element element = Element.None, Boolean multiTarget = false, Int32? attackOverride = null,
+        Boolean ignoreDefense = false)
     {
         caster.CurrentMP -= mpCost;
         var result = MagicAttack.Execute(caster, target, spellPower,
-            _rng, multiTarget: multiTarget, element: element);
+            _rng, multiTarget: multiTarget, element: element,
+            attackOverride: attackOverride, ignoreDefense: ignoreDefense);
         var added = result.Outcome is AttackOutcome.Hit or AttackOutcome.Absorbed
                     && riderStatuses != 0 && riderRate > _rng.Rand16() % 100
             ? StatusApplication.Apply(target, (BattleStatus)riderStatuses, _statusTable)
@@ -306,6 +309,7 @@ public sealed class BattleEngine
             AbilityScript.Revive => ExecuteRevive(actor, target, attack.Power, attack.StatusMask),
             AbilityScript.DrainHp => ExecuteDrainHP(actor, target, attack.Power, attack.StatusMask, attack.Rate, attack.Elements),
             AbilityScript.MagicGravityDamage => ExecuteGravity(actor, target, attack.Power, attack.Rate, divided),
+            AbilityScript.Meteorite => ExecuteMeteorite(actor, target, attack.Power, attack.StatusMask, attack.Rate, attack.Elements, divided),
             AbilityScript.PreciseDirectHPDamage => ExecuteDirectHP(actor, target, attack.Power, attack.Rate, precise: true),
             AbilityScript.DirectHPDamage => ExecuteDirectHP(actor, target, attack.Power, attack.Rate, precise: false),
             AbilityScript.WhiteWind => ExecuteWhiteWind(actor, target, attack.Power),
@@ -471,6 +475,18 @@ public sealed class BattleEngine
         ATBClock.ResetAfterAction(caster);
         return new BattleEvent(caster, target, new AttackResult(AttackOutcome.Healed, restored));
     }
+
+    /// <summary>Meteorite (mirror: 0018_MeteoriteScript → InitializeAttackParams): the
+    /// attack term is a FLAT roll — rand16 % (Magic + Level), floored at 1 — and
+    /// DefensePower is forced to zero, so magic defence never applies. That is the entire
+    /// reason Meteor swings between a scratch and a catastrophe. Divergences: vanilla's
+    /// outright Meteor miss is a player-command flag (info.meteor_miss) enemy attacks
+    /// never carry, and Comet's ~1-in-3 miss keys off the VfxIndex byte our scene parser
+    /// skips as presentation.</summary>
+    public BattleEvent ExecuteMeteorite(BattleUnit caster, BattleUnit target, Int32 power,
+        UInt32 riderStatuses, Int32 riderRate, Element element, Boolean divided)
+        => ExecuteSpell(caster, target, power, 0, riderStatuses, riderRate, element, divided,
+            attackOverride: _rng.Rand16() % (caster.Magic + caster.Level), ignoreDefense: true);
 }
 
 public sealed record BattleEvent(
