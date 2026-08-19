@@ -263,6 +263,7 @@ public sealed partial class BattleEngine
             AbilityScript.MagicCureStatus => ExecuteCure(actor, target, ability),
             AbilityScript.Revive => ExecuteRevive(actor, target, ability),
             AbilityScript.Death => ExecuteDeath(actor, target, ability),
+            AbilityScript.DrainMp => ExecuteDrainMP(actor, target, ability),
             AbilityScript.DrainHp => ExecuteDrainHP(actor, target, ability, divided),
             AbilityScript.MagicGravityDamage => ExecuteGravity(actor, target, ability, divided),
             AbilityScript.Meteorite => ExecuteMeteorite(actor, target, ability, divided),

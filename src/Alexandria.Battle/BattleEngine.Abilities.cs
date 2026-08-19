@@ -139,6 +139,28 @@ public sealed partial class BattleEngine
         return Finish(caster, target, new AttackResult(outcome, 0), landed);
     }
 
+    /// <summary>MP drain (mirror: 0015_DrainMpScript → CalcMpDamage). No accuracy roll and
+    /// no element handling whatsoever. The amount is max(0, power − MagicalDefence) × attack >> 2,
+    /// where attack is the caster's usual magic roll halved by their own Mini and by the
+    /// target's Shell.</summary>
+    public BattleEvent ExecuteDrainMP(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        if (ReferenceEquals(caster, target) || !target.IsAlive || target.Has(BattleStatus.Petrify))
+            return Missed(caster, target);
+
+        var attack = caster.Magic + _rng.Rand16() % (1 + ((caster.Level + caster.Magic) >> 3));
+        if (caster.Has(BattleStatus.Mini))
+            attack >>= 1;
+        if (target.Has(BattleStatus.Shell))
+            attack >>= 1;
+
+        var drained = Math.Min(Math.Max(0, ability.Power - target.MagicalDefense) * attack >> 2, target.CurrentMP);
+        target.CurrentMP -= drained;
+        caster.CurrentMP = Math.Min(caster.MaxHP, caster.CurrentMP + drained);
+
+        return Finish(caster, target, new AttackResult(AttackOutcome.MPDamage, drained));
+    }
+
     /// <summary>Drain HP (mirror: 0016_DrainHpScript): ordinary magic damage, then the
     /// caster recovers exactly what the target lost. Divergence: that flow is inverted
     /// against a Zombie target.</summary>

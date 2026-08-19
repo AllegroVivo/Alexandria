@@ -188,6 +188,7 @@ public static class BattleCommand
             AttackOutcome.NoEffect => $"{e.Actor.Name}'s {e.Ability?.Name} fizzles (script {e.Ability?.Script} not implemented).",
             AttackOutcome.Healed when e.Result.Damage > 0 => $"{e.Target.Name} recovers {e.Result.Damage} HP!",
             AttackOutcome.Healed => $"{e.Target.Name} is restored.",
+            AttackOutcome.MPDamage => $"{e.Target.Name} loses {e.Result.Damage} MP!",
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
         if (e.StatusesAdded != 0 && e.Result.Damage > 0)

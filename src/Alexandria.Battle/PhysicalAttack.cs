@@ -9,7 +9,8 @@ public enum AttackOutcome
     Guarded,
     Absorbed,
     NoEffect,
-    Healed
+    Healed,
+    MPDamage
 }
 
 /// <summary>
