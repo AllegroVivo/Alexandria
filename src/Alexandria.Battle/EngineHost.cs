@@ -111,86 +111,92 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
 
     public void Spawn(Int32 entry, Int32 uid) => SpawnedEntries.Add(entry);
 
-    public Int32 ReadStat(Int32 mask, Int32 statId)
+    public Int32 ReadStat(Int32 mask, CharacterStat stat)
     {
         var unit = UnitFromMask(mask);
         if (unit is null)
             return 0;
-        return statId switch
+        return stat switch
         {
-            35 => unit.MaxHP,
-            36 => unit.CurrentHP,
-            37 => unit.MaxMP,
-            38 => unit.CurrentMP,
-            39 => unit.ATBMax,
-            40 => unit.ATBGauge,
-            41 => unit.Level,
-            42 => (Int32)unit.ImmuneStatuses >>> 24, // STATUS_IMMUNE_B
-            43 => (Int32)((UInt32)unit.ImmuneStatuses & 0xFFFFFF), // STATUS_IMMUNE_A
-            44 => (Int32)unit.PermanentStatuses >>> 24, // STATUS_AUTO_B
-            45 => (Int32)((UInt32)unit.PermanentStatuses & 0xFFFFFF),
-            46 => (Int32)unit.Statuses >>> 24, // STATUS_CURRENT_B
-            47 => (Int32)((UInt32)unit.Statuses & 0xFFFFFF),
-            48 => (Int32)unit.GuardElements,
-            49 => (Int32)unit.AbsorbElements,
-            50 => (Int32)unit.HalfElements,
-            51 => (Int32)unit.WeakElements,
-            64 => unit.Row,
-            65 => Int32.TrailingZeroCount(mask), // COLUMN = bi.line_no = the line itself
-            66 => unit.ModelType,
-            67 or 68 => unit.Category, // vanilla: 67 player-side, 68 enemy-side — one field serves both
-            69 => unit.StandAnimation,
-            70 => Int32.TrailingZeroCount(mask) % 4, // ENEMY_ID
-            72 => unit.Strength,
-            73 => unit.Magic,
-            74 => unit.PhysicalDefense,
-            75 => unit.PhysicalEvade,
-            76 => unit.MagicalDefense,
-            77 => unit.MagicalEvade,
+            CharacterStat.MaxHP => unit.MaxHP,
+            CharacterStat.HP => unit.CurrentHP,
+            CharacterStat.MaxMP => unit.MaxMP,
+            CharacterStat.MP => unit.CurrentMP,
+            CharacterStat.MaxATB => unit.ATBMax,
+            CharacterStat.ATB => unit.ATBGauge,
+            CharacterStat.Level => unit.Level,
+            CharacterStat.StatusImmuneB => (Int32)unit.ImmuneStatuses >>> 24, // STATUS_IMMUNE_B
+            CharacterStat.StatusImmuneA => (Int32)((UInt32)unit.ImmuneStatuses & 0xFFFFFF), // STATUS_IMMUNE_A
+            CharacterStat.StatusAutoB => (Int32)unit.PermanentStatuses >>> 24, // STATUS_AUTO_B
+            CharacterStat.StatusAutoA => (Int32)((UInt32)unit.PermanentStatuses & 0xFFFFFF),
+            CharacterStat.StatusCurrentB => (Int32)unit.Statuses >>> 24, // STATUS_CURRENT_B
+            CharacterStat.StatusCurrentA => (Int32)((UInt32)unit.Statuses & 0xFFFFFF),
+            CharacterStat.ElementImmune => (Int32)unit.GuardElements,
+            CharacterStat.ElementAbsorb => (Int32)unit.AbsorbElements,
+            CharacterStat.ElementHalf => (Int32)unit.HalfElements,
+            CharacterStat.ElementWeak => (Int32)unit.WeakElements,
+            CharacterStat.Model => unit.ModelID,
+            CharacterStat.Row => unit.Row,
+            CharacterStat.Column => Int32.TrailingZeroCount(mask), // COLUMN = bi.line_no = the line itself
+            CharacterStat.ModelType => unit.ModelType,
+            CharacterStat.Category or CharacterStat.Class => unit.Category, // vanilla: 67 player-side, 68 enemy-side — one field serves both
+            CharacterStat.StandAnimation => unit.StandAnimation,
+            CharacterStat.EnemyID => Int32.TrailingZeroCount(mask) % 4, // ENEMY_ID
+            CharacterStat.Strength => unit.Strength,
+            CharacterStat.Magic => unit.Magic,
+            CharacterStat.Defence => unit.PhysicalDefense,
+            CharacterStat.Evade => unit.PhysicalEvade,
+            CharacterStat.MagicalDefence => unit.MagicalDefense,
+            CharacterStat.MagicalEvade => unit.MagicalEvade,
             // write-only verbs read back as vanilla's no-case default (btl_scrp.cs:197)
-            32 or 33 or 34 or (>= 54 and <= 56) or (>= 59 and <= 63) or 71 or 78 => 0xFFFFFF,
-            _ => throw new NotSupportedException($"stat {statId} — teach me")
+            CharacterStat.Appear or CharacterStat.Disappear or CharacterStat.KillCommands
+                or CharacterStat.Shadow or CharacterStat.ModelScale or CharacterStat.ModelScaleReset
+                or CharacterStat.HideMesh or CharacterStat.ShowMesh
+                or CharacterStat.TextureAnimPlay or CharacterStat.TextureAnimStop
+                or CharacterStat.TextureAnimOnce or CharacterStat.SetBonus or CharacterStat.SummonEiko
+                => 0xFFFFFF,
+            _ => throw new NotSupportedException($"stat {stat} — teach me")
         };
     }
 
-    public void WriteStat(Int32 mask, Int32 statId, Int32 value)
+    public void WriteStat(Int32 mask, CharacterStat stat, Int32 value)
     {
         var unit = UnitFromMask(mask);
         if (unit is null)
             return;
-        switch (statId)
+        switch (stat)
         {
-            case 35: unit.MaxHP = value; break;
-            case 36: unit.CurrentHP = value; break;
-            case 37: unit.MaxMP = value; break;
-            case 38: unit.CurrentMP = value; break;
-            case 40: unit.ATBGauge = value; break; // vanilla adds an Ozma speed-config guard here
-            case 42: unit.ImmuneStatuses = (BattleStatus)((UInt32)unit.ImmuneStatuses & 0xFFFFFF | (UInt32)value << 24); break;
-            case 43: unit.ImmuneStatuses = (BattleStatus)((UInt32)unit.ImmuneStatuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
-            case 44: SetPermanent(unit, (UInt32)unit.PermanentStatuses & 0xFFFFFF | (UInt32)value << 24); break;
-            case 45: SetPermanent(unit, (UInt32)unit.PermanentStatuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
-            case 46: unit.Statuses = (BattleStatus)((UInt32)unit.Statuses & 0xFFFFFF | (UInt32)value << 24); break;
-            case 47: unit.Statuses = (BattleStatus)((UInt32)unit.Statuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
-            case 48: unit.GuardElements = (Element)value; break;
-            case 49: unit.AbsorbElements = (Element)value; break;
-            case 50: unit.HalfElements = (Element)value; break;
-            case 51: unit.WeakElements = (Element)value; break;
-            case 69: unit.StandAnimation = value; break; // plain store, no side call — vanilla applies it at the next idle
-            case 72: unit.Strength = value; break;
-            case 73: unit.Magic = value; break;
-            case 74: unit.PhysicalDefense = value; break;
-            case 75: unit.PhysicalEvade = value; break;
-            case 76: unit.MagicalDefense = value; break;
-            case 77: unit.MagicalEvade = value; break;
+            case CharacterStat.MaxHP: unit.MaxHP = value; break;
+            case CharacterStat.HP: unit.CurrentHP = value; break;
+            case CharacterStat.MaxMP: unit.MaxMP = value; break;
+            case CharacterStat.MP: unit.CurrentMP = value; break;
+            case CharacterStat.ATB: unit.ATBGauge = value; break; // vanilla adds an Ozma speed-config guard here
+            case CharacterStat.StatusImmuneB: unit.ImmuneStatuses = (BattleStatus)((UInt32)unit.ImmuneStatuses & 0xFFFFFF | (UInt32)value << 24); break;
+            case CharacterStat.StatusImmuneA: unit.ImmuneStatuses = (BattleStatus)((UInt32)unit.ImmuneStatuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
+            case CharacterStat.StatusAutoB: SetPermanent(unit, (UInt32)unit.PermanentStatuses & 0xFFFFFF | (UInt32)value << 24); break;
+            case CharacterStat.StatusAutoA: SetPermanent(unit, (UInt32)unit.PermanentStatuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
+            case CharacterStat.StatusCurrentB: unit.Statuses = (BattleStatus)((UInt32)unit.Statuses & 0xFFFFFF | (UInt32)value << 24); break;
+            case CharacterStat.StatusCurrentA: unit.Statuses = (BattleStatus)((UInt32)unit.Statuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
+            case CharacterStat.ElementImmune: unit.GuardElements = (Element)value; break;
+            case CharacterStat.ElementAbsorb: unit.AbsorbElements = (Element)value; break;
+            case CharacterStat.ElementHalf: unit.HalfElements = (Element)value; break;
+            case CharacterStat.ElementWeak: unit.WeakElements = (Element)value; break;
+            case CharacterStat.StandAnimation: unit.StandAnimation = value; break; // plain store, no side call — vanilla applies it at the next idle
+            case CharacterStat.Strength: unit.Strength = value; break;
+            case CharacterStat.Magic: unit.Magic = value; break;
+            case CharacterStat.Defence: unit.PhysicalDefense = value; break;
+            case CharacterStat.Evade: unit.PhysicalEvade = value; break;
+            case CharacterStat.MagicalDefence: unit.MagicalDefense = value; break;
+            case CharacterStat.MagicalEvade: unit.MagicalEvade = value; break;
             // rendering & roster verbs a headless sim honors as no-ops (vanilla intent in comments):
-            case 32 or 33: break; // show/hide unit + add/remove from roster (btl_sys)
-            case 34: break; // KillStandardCommands — the sim queues no commands
-            case 52 or 53: break; // tar_mode request / SetDisappear — no targeting model yet
-            case 54: break; // shadow toggle
-            case 55 or 56: break; // model scale set/reset (the tag-7 Mini handlers)
-            case >= 59 and <= 63: break; // mesh hide/show, texture anims
-            case 71: break; // SetBonus — reward banking not modeled
-            default: throw new NotSupportedException($"stat {statId} write — teach me");
+            case CharacterStat.Appear or CharacterStat.Disappear: break; // show/hide unit + add/remove from roster (btl_sys)
+            case CharacterStat.KillCommands: break; // KillStandardCommands — the sim queues no commands
+            case CharacterStat.Targetable or CharacterStat.Vanished: break; // tar_mode request / SetDisappear — no targeting model yet
+            case CharacterStat.Shadow: break; // shadow toggle
+            case CharacterStat.ModelScale or CharacterStat.ModelScaleReset: break; // model scale set/reset (the tag-7 Mini handlers)
+            case >= CharacterStat.HideMesh and <= CharacterStat.TextureAnimOnce: break; // mesh hide/show, texture anims
+            case CharacterStat.SetBonus: break; // SetBonus — reward banking not modeled
+            default: throw new NotSupportedException($"stat {stat} write — teach me");
         }
     }
 

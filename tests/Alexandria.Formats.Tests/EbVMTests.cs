@@ -9,11 +9,11 @@ public class EbVMTests
         public Int32 Sysvar(Int32 id) => id == 0 ? Random8() : throw new NotSupportedException();
         public Int32 SysList(Int32 slot) => throw new NotSupportedException();
         public void SetSysList(Int32 slot, Int32 value) => throw new NotSupportedException();
-        public Int32 ReadStat(Int32 mask, Int32 stat) => throw new NotSupportedException();
+        public Int32 ReadStat(Int32 mask, CharacterStat stat) => throw new NotSupportedException();
         public Int32 RandomBit(Int32 mask) => throw new NotSupportedException();
         public void Attack(Int32 attackId) => throw new NotSupportedException();
         public void BattleDialog(Int32 textId) => throw new NotImplementedException();
-        public void WriteStat(Int32 mask, Int32 stat, Int32 value) => throw new NotSupportedException();
+        public void WriteStat(Int32 mask, CharacterStat stat, Int32 value) => throw new NotSupportedException();
         public void BattleSet(Int32 verb, Int32 value) => throw new NotSupportedException();
         public void SetTextVariable(Int32 scriptId, Int32 value) => throw new NotSupportedException();
         public void AttackSpecial(Int32 attackId) => throw new NotSupportedException();

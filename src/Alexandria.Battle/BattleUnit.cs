@@ -57,6 +57,7 @@ public sealed class BattleUnit
     public Int32 Row { get; set; }
     public Int32 Category { get; set; }
     public Int32 ModelType { get; set; }
+    public Int32 ModelID { get; set; }
 
     public static BattleUnit FromEnemy(String name, BattleSceneMonsterParam m) => new()
     {
@@ -81,7 +82,8 @@ public sealed class BattleUnit
         Row = 2,
         Category = m.Category,
         ImmuneStatuses = (BattleStatus)m.ResistStatus,
-        DiesFighting = (m.Flags & 1) != 0
+        DiesFighting = (m.Flags & 1) != 0,
+        ModelID = m.Geo
     };
 
     public Boolean Has(BattleStatus status) => (Statuses & status) != 0;

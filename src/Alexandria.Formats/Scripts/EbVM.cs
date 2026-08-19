@@ -380,16 +380,16 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
 
             case ExprOp.PostPlusA or ExprOp.PostMinusA or ExprOp.PrePlusA or ExprOp.PreMinusA: // ++/-- a stat of every unit in a mask (OperatorAll1)
             {
-                var (statId, mask) = PopMemberOperands();
+                var (operand, mask) = PopMemberOperands();
                 var result = 0;
                 for (var line = 0; line < 8; line++)
                 {
                     if ((mask >> line & 1) == 0)
                         continue;
                     _memberTarget = line;
-                    var current = host.ReadStat(1 << line, statId);
+                    var current = Evaluate(operand);
                     var written = op is ExprOp.PostPlusA or ExprOp.PrePlusA ? current + 1 : current - 1;
-                    host.WriteStat(1 << line, statId, written);
+                    WriteThrough(operand, written);
                     result = op is ExprOp.PostPlusA or ExprOp.PostMinusA ? current : written;
                 }
                 PushValue(result);
@@ -402,14 +402,14 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
 
             case ExprOp.NotE: // B_NOT_E: the mask of units whose stat is zero (OperatorExtract1)
             {
-                var (statId, mask) = PopMemberOperands();
+                var (operand, mask) = PopMemberOperands();
                 var result = 0;
                 for (var line = 0; line < 8; line++)
                 {
                     if ((mask >> line & 1) == 0)
                         continue;
                     _memberTarget = line;
-                    if (host.ReadStat(1 << line, statId) == 0)
+                    if (Evaluate(operand) == 0)
                         result |= 1 << line;
                 }
                 PushValue(result);
@@ -453,14 +453,14 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
                 or ExprOp.AndE or ExprOp.NandE or ExprOp.XorE or ExprOp.OrE:
             {
                 var cmp = Evaluate(Pop());
-                var (statId, mask) = PopMemberOperands();
+                var (operand, mask) = PopMemberOperands();
                 var result = 0;
                 for (var line = 0; line < 8; line++)
                 {
                     if ((mask >> line & 1) == 0)
                         continue;
                     _memberTarget = line;
-                    var v = host.ReadStat(1 << line, statId);
+                    var v = Evaluate(operand);
                     var hit = op switch
                     {
                         ExprOp.LtE => v < cmp,
@@ -489,7 +489,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
 
             case ExprOp.Pick: // B_PICK: the stat of the LOWEST unit in a mask (mirror: OperatorPick)
             {
-                var (statId, mask) = PopMemberOperands();
+                var (operand, mask) = PopMemberOperands();
                 var line = LowestBit(mask);
                 if (line < 0)
                 {
@@ -497,7 +497,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
                     break;
                 }
                 _memberTarget = line;
-                PushValue(host.ReadStat(1 << line, statId));
+                PushValue(Evaluate(operand));
                 break;
             }
             
@@ -513,14 +513,14 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
                 or ExprOp.AndLetA or ExprOp.XorLetA or ExprOp.OrLetA: // _A: assign to every unit (OperatorAll)
             {
                 var value = Evaluate(Pop());
-                var (statId, mask) = PopMemberOperands();
+                var (operand, mask) = PopMemberOperands();
                 var result = 0;
                 for (var line = 0; line < 8; line++)
                 {
                     if ((mask >> line & 1) == 0)
                         continue;
                     _memberTarget = line;
-                    var current = op == 45 ? 0 : host.ReadStat(1 << line, statId);
+                    var current = op == 45 ? 0 : Evaluate(operand);
                     result = op switch
                     {
                         ExprOp.LetA => value,
@@ -535,7 +535,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
                         ExprOp.XorLetA => current ^ value,
                         _ => current | value
                     };
-                    host.WriteStat(1 << line, statId, result);
+                    WriteThrough(operand, result);
                 }
                 PushValue(result);
                 break;
@@ -568,14 +568,14 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
 
             case ExprOp.LetE or ExprOp.AndLetE or ExprOp.XorLetE or ExprOp.OrLetE: // _E extract-assign: dest gets a truthiness mask (OperatorExtractLet)
             {
-                var (statId, mask) = PopMemberOperands();
+                var (operand, mask) = PopMemberOperands();
                 var result = 0;
                 for (var line = 0; line < 8; line++)
                 {
                     if ((mask >> line & 1) == 0)
                         continue;
                     _memberTarget = line;
-                    if (host.ReadStat(1 << line, statId) != 0)
+                    if (Evaluate(operand) != 0)
                         result |= 1 << line;
                 }
                 var dest = Pop();
@@ -598,7 +598,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
 
             case ExprOp.Lmax or ExprOp.Lmin: // B_LMAX/B_LMIN: 1 << line of the best unit (mirror: OperatorExtract1)
             {
-                var (statId, mask) = PopMemberOperands();
+                var (operand, mask) = PopMemberOperands();
                 var best = op == 75 ? (Int32)Int16.MinValue : Int16.MaxValue;
                 var bestLine = 0;
                 for (var line = 0; line < 8; line++)
@@ -606,7 +606,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
                     if ((mask >> line & 1) == 0)
                         continue;
                     _memberTarget = line;
-                    var v = host.ReadStat(1 << line, statId);
+                    var v = Evaluate(operand);
                     if (op == ExprOp.Lmax ? best < v : best > v)
                     {
                         best = v;
@@ -649,17 +649,13 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         ? _memberTarget
         : throw new InvalidOperationException("bare stat cell before any PICK/_E/_A set the member target");
 
-    /// <summary>The operand pair under every member-set operator: the stat cell on
-    /// top, the unit mask beneath (a SysList cell reads live, anything else was
-    /// computed). Vanilla peeks the mask in place and re-pops the stat cell once
-    /// per unit; popping both once and reusing them is the same dance flattened.</summary>
-    private (Int32 StatID, Int32 Mask) PopMemberOperands()
+    /// <summary>The operand pair under every member-set operator: the operand cell on top,
+    /// the unit mask beneath.</summary>
+    private (Cell Operand, Int32 Mask) PopMemberOperands()
     {
-        var member = Pop();
-        if (member.Source != VarSource.Member)
-            throw new NotSupportedException($"member-set operand source {member.Source} — teach me");
+        var operand = Pop();
         var mask = Evaluate(Pop()) & 0xFF;
-        return (member.StatID, mask);
+        return (operand, mask);
     }
 
     private static Int32 LowestBit(Int32 mask)
@@ -676,7 +672,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         VarSource.Map => Read(_state.Map, cell),
         VarSource.Instance => Read(_vars, cell),
         VarSource.System => host.SysList(cell.Slot),
-        VarSource.Member => host.ReadStat(1 << MemberLine(), cell.StatID),
+        VarSource.Member => host.ReadStat(1 << MemberLine(), cell.Stat),
         VarSource.Int26 => cell.SignedValue,
         var source => throw new NotSupportedException($"variable source {source} — teach me")
     };
@@ -686,7 +682,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         switch (cell.Source)
         {
             case VarSource.Member: // bare stat write: whichever unit the last loop touched
-                host.WriteStat(1 << MemberLine(), cell.StatID, value);
+                host.WriteStat(1 << MemberLine(), cell.Stat, value);
                 return;
             case VarSource.System:
                 host.SetSysList(cell.Slot, value);
@@ -873,5 +869,6 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         public static Cell FromSpec(Int32 spec, Int32 index)
             => new((spec & 3) << 26 | (spec & 0x1C) << 27 | index);
 
+        public CharacterStat Stat => (CharacterStat)(StatID);
     }
 }

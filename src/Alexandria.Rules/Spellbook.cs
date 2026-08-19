@@ -5,10 +5,13 @@ namespace Alexandria.Rules;
 /// A freshly built character has learned nothing, so gear defines the starting book.</summary>
 public static class Spellbook
 {
-    public static IReadOnlyList<BattleAction> For(RulesDB db, String name, IReadOnlySet<Int32>? learned = null)
+    public static IReadOnlyList<BattleAction> For(RulesDB db, String name, 
+        IReadOnlySet<Int32>? learned = null, Int32[]? slots = null)
     {
-        var kit = EquipmentKit.Resolve(db.DefaultEquipment.First(e => e.Name == name),
-            db.Items, db.Weapons, db.Armors, db.GrowthStats);
+        var kit = slots is null
+            ? EquipmentKit.Resolve(db.DefaultEquipment.First(e => e.Name == name),
+                db.Items, db.Weapons, db.Armors, db.GrowthStats)
+            : EquipmentKit.Resolve(slots, db.Items, db.Weapons, db.Armors, db.GrowthStats);
         var usable = kit.TaughtAbilities
             .Where(a => a.Kind == AbilityKind.Active)
             .Select(a => a.ID)

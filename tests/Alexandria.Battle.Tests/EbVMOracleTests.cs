@@ -28,10 +28,10 @@ public class EbVmOracleTests
             if (slot == 0) Target = value;
         }
 
-        public Int32 ReadStat(Int32 mask, Int32 statId) => statId switch
+        public Int32 ReadStat(Int32 mask, CharacterStat stat) => stat switch
         {
-            38 => selfMp,
-            _ => throw new NotSupportedException($"stat {statId}")
+            CharacterStat.MP => selfMp,
+            _ => throw new NotSupportedException($"stat {stat}")
         };
 
         public Int32 RandomBit(Int32 mask)
@@ -47,7 +47,7 @@ public class EbVmOracleTests
 
         public void Attack(Int32 attackId) => AttackId = attackId;
         public void BattleDialog(Int32 textId) => throw new NotSupportedException();
-        public void WriteStat(Int32 mask, Int32 statId, Int32 value) => throw new NotSupportedException($"stat {statId}");
+        public void WriteStat(Int32 mask, CharacterStat stat, Int32 value) => throw new NotSupportedException($"stat {stat}");
         public void BattleSet(Int32 verb, Int32 value) => throw new NotSupportedException();
         public void SetTextVariable(Int32 scriptId, Int32 value) => throw new NotSupportedException();
         public void AttackSpecial(Int32 attackId) => throw new NotSupportedException();

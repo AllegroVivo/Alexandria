@@ -56,9 +56,12 @@ public static class BattleCommand
             })
             .ToList();
 
+        var threat = (Byte)enemies.SelectMany(e => e.Attacks)
+            .Aggregate(0, (mask, a) => mask | (Int32)a.Elements);
+
         var level = enemies.Max(e => e.Level);
         var partyNames = args.Length > 2 ? args[2].Split(',') : ["Zidane", "Garnet", "Steiner", "Vivi"];
-        var party = partyNames.Select(n => BuildCharacter(db, n, level)).ToList();
+        var party = partyNames.Select(n => BuildCharacter(db, n, level, threat)).ToList();
         var host = new EngineHost(party, enemies, rng) { Pattern = pattern };
         var state = new EbState();
         EbVM? director;
@@ -86,7 +89,8 @@ public static class BattleCommand
         var spellbook = party.ToDictionary(
             p => p.Name,
             p => Spellbook.For(db, p.Name,
-                    APEarned.LearnedActives(db.Learnables.GetValueOrDefault(p.Name, []), p.Level))
+                    APEarned.LearnedActives(db.Learnables.GetValueOrDefault(p.Name, []), p.Level),
+                    Loadout.Best(db, p.Name, threat))
                 .Where(s => BattleEngine.ResolvableScripts.Contains(s.Script)).ToList());
 
         Console.WriteLine($"— {String.Join(" and ", enemies.Select(e => e.Name))} appeared! —");
@@ -141,11 +145,11 @@ public static class BattleCommand
             Console.WriteLine($"Received {host.GilEarned} gil!");
     }
 
-    private static BattleUnit BuildCharacter(RulesDB db, String name, Int32 level)
+    private static BattleUnit BuildCharacter(RulesDB db, String name, Int32 level, Byte threat = 0)
     {
         var baseStats = db.BaseStats.First(c => c.Name == name);
-        var kit = EquipmentKit.Resolve(db.DefaultEquipment.First(e => e.Name == name),
-            db.Items, db.Weapons, db.Armors, db.GrowthStats);
+        var slots = Loadout.Best(db, name, threat);
+        var kit = EquipmentKit.Resolve(slots, db.Items, db.Weapons, db.Armors, db.GrowthStats);
         var grown = GrowthSimulator.LevelUpTo(level, GrowthBonuses.None, kit.GrowthPerLevel);
         var sheet = StatGrowth.AtLevel(baseStats, db.Leveling, level, grown);
 
@@ -177,7 +181,8 @@ public static class BattleCommand
             AttackOutcome.CriticalHit => $"{e.Actor.Name} lands a CRITICAL on {e.Target.Name} for {e.Result.Damage}!",
             AttackOutcome.Guarded => $"{e.Target.Name} nulls it — no effect!",
             AttackOutcome.Absorbed => $"{e.Target.Name} drinks it in — absorbs {e.Result.Damage} HP!",
-            AttackOutcome.Hit when e.Result.Damage == 0 => $"{e.Target.Name} succumbs!",
+            AttackOutcome.Hit when e.Result.Damage == 0 && e.StatusesAdded != 0 => $"{e.Target.Name} is now {e.StatusesAdded}.",
+            AttackOutcome.Hit when e.Result.Damage == 0 => $"{e.Target.Name} is unaffected.",
             AttackOutcome.NoEffect when e.Attack is { } a && !Enum.IsDefined(a.Script)
                 => $"{e.Actor.Name} is posturing — pure theatre.",
             AttackOutcome.NoEffect => $"{e.Actor.Name}'s {e.Attack?.Name} fizzles (script {e.Attack?.Script} not implemented).",

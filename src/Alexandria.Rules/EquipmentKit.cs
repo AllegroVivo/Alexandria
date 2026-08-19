@@ -20,8 +20,14 @@ public sealed record EquipmentKit(
         IReadOnlyDictionary<Int32, Weapon> weapons,
         IReadOnlyDictionary<Int32, Armor> armors,
         IReadOnlyDictionary<Int32, ItemStats> growthStats)
+        => Resolve([set.Weapon, set.Head, set.Wrist, set.Armor, set.Accessory],
+            items, weapons, armors, growthStats);
+    public static EquipmentKit Resolve(Int32[] slots,
+        IReadOnlyDictionary<Int32, Item> items,
+        IReadOnlyDictionary<Int32, Weapon> weapons,
+        IReadOnlyDictionary<Int32, Armor> armors,
+        IReadOnlyDictionary<Int32, ItemStats> growthStats)
     {
-        Int32[] slots = [set.Weapon, set.Head, set.Wrist, set.Armor, set.Accessory];
         Int32 power = 0, pd = 0, pe = 0, md = 0, me = 0;
         Byte weaponElement = 0, boost = 0, guard = 0, absorb = 0, half = 0, weak = 0;
         List<AbilityRef> taught = [];

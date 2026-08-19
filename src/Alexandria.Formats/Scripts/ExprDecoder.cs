@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Alexandria.Formats.Scripts;
 
 /// <summary>
@@ -180,24 +182,9 @@ public static class ExprDecoder
         return $"{source}[{index}]";
     }
 
-    private static String MemberName(Byte id) => id switch
-    {
-        35 => "MAX_HP", 36 => "HP", 37 => "MAX_MP", 38 => "MP",
-        39 => "MAX_ATB", 40 => "ATB", 41 => "LEVEL",
-        42 => "STATUS_IMMUNE_B", 43 => "STATUS_IMMUNE_A",
-        44 => "STATUS_AUTO_B", 45 => "STATUS_AUTO_A",
-        46 => "STATUS_CURRENT_B", 47 => "STATUS_CURRENT_A",
-        48 => "ELEMENT_IMMUNE", 49 => "ELEMENT_ABSORB",
-        50 => "ELEMENT_HALF", 51 => "ELEMENT_WEAK",
-        52 => "TARGETABLE", 53 => "DISAPPEAR", 54 => "SHADOW",
-        57 => "MODEL", 58 => "MODEL_VISIBLE",
-        64 => "ROW", 65 => "COLUMN", 66 => "MODEL_TYPE",
-        67 => "CATEGORY", 68 => "CLASS", 69 => "STAND_ANIMATION",
-        70 => "ENEMY_ID", 71 => "SET_BONUS",
-        72 => "STRENGTH", 73 => "MAGIC", 74 => "DEFENCE", 75 => "EVADE",
-        76 => "MAGICAL_DEFENCE", 77 => "MAGICAL_EVADE",
-        _ => $"stat[{id}]"
-    };
+    private static String MemberName(Byte id) => Enum.IsDefined((CharacterStat)id) 
+        ? Regex.Replace(((CharacterStat)id).ToString(), "(?<=[a-z])(?=[A-Z])", "_").ToUpperInvariant()
+        : $"stat[{id}]";
 
     private static String SysListName(Byte slot) => slot switch
     {
