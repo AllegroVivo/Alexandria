@@ -1,4 +1,5 @@
 using Alexandria.Battle;
+using Alexandria.Rules;
 
 namespace Alexandria.Battle.Tests;
 
@@ -65,5 +66,33 @@ public class BattleEngineTests
 
         Assert.True(engine.Victory);
         Assert.False(engine.Defeat);
+    }
+    
+    /// <summary>The tripwire for a mistake that has landed twice: a script gets a verb and
+    /// a dispatch arm but never joins ResolvableScripts, so it works perfectly in battle
+    /// while the census and the party's spellbook both insist it does not exist. Only
+    /// Choreography yields NoEffect, so "the dispatcher did something" and "we declared it
+    /// resolvable" must agree in BOTH directions, for every script id in the enum.</summary>
+    [Fact]
+    public void Every_dispatched_script_is_declared_resolvable_and_the_reverse()
+    {
+        var mismatches = new List<String>();
+
+        foreach (var script in Enum.GetValues<AbilityScript>())
+        {
+            var hero = Unit("Hero", speed: 20, hp: 500);
+            var wolf = Unit("Wolf", speed: 20, hp: 500);
+            var engine = new BattleEngine([hero], [wolf], EncounterKind.Preemptive, new Random(1));
+            var probe = new BattleAbility("probe", script, 10, Element.None, 50, 0, 0);
+
+            var dispatched = engine.ExecuteAbility(hero, wolf, probe).Result.Outcome
+                             != AttackOutcome.NoEffect;
+            var declared = BattleEngine.ResolvableScripts.Contains(script);
+
+            if (dispatched != declared)
+                mismatches.Add($"{script} ({(Int32)script}): dispatched={dispatched}, declared={declared}");
+        }
+
+        Assert.True(mismatches.Count == 0, String.Join("\n", mismatches));
     }
 }

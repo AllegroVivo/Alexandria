@@ -35,6 +35,7 @@ public sealed partial class BattleEngine
         AbilityScript.MagicApplyNegativeStatus,
         AbilityScript.MagicCureStatus,
         AbilityScript.Revive,
+        AbilityScript.DrainMp,
         AbilityScript.DrainHp,
         AbilityScript.MagicGravityDamage,
         AbilityScript.Meteorite,
