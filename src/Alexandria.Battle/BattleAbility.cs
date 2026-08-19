@@ -2,9 +2,9 @@ using Alexandria.Rules;
 
 namespace Alexandria.Battle;
 
-/// <summary>One entry in an enemy's move roster, resolved from scene AA_DATA:
-/// ScriptId picks the formula (8 physical, 9 magic+rider, 11 pure status).</summary>
-public sealed record EnemyAttack(
+/// <summary>One resolved ability: scene AA_DATA for an enemy's roster entry, or an
+/// Actions.csv row for a party member's spell.</summary>
+public sealed record BattleAbility(
     String Name,
     AbilityScript Script,
     Int32 Power,
@@ -15,4 +15,4 @@ public sealed record EnemyAttack(
     Int32 ID = -1,
     Int32 TargetType = 0,
     Boolean ForDead = false);
-
+    

@@ -3,7 +3,7 @@ using Alexandria.Rules;
 
 namespace Alexandria.Battle.Tests;
 
-public class EnemyAttackTests
+public class BattleAbilityTests
 {
     private static BattleUnit Knight() => new()
     {
@@ -13,7 +13,7 @@ public class EnemyAttackTests
         AttackPower = 12,
     };
 
-    private static BattleUnit Wolf(params EnemyAttack[] attacks)
+    private static BattleUnit Wolf(params BattleAbility[] attacks)
     {
         var wolf = new BattleUnit
         {
@@ -22,7 +22,7 @@ public class EnemyAttackTests
             PhysicalDefense = 10, PhysicalEvade = 3, MagicalDefense = 10, MagicalEvade = 4,
             AttackPower = 22,
         };
-        wolf.Attacks.AddRange(attacks);
+        wolf.Abilities.AddRange(attacks);
         return wolf;
     }
 
@@ -33,13 +33,13 @@ public class EnemyAttackTests
         // damage = 11 × max(25 − 0, 1) = 275; MP 464 − 12 = 452
         var knight = Knight();
         var wolf = Wolf(
-            new EnemyAttack("Rush", AbilityScript.EnemyPhysicalAttack, 24, Element.None, 100, 0, 0),
-            new EnemyAttack("Thundara", AbilityScript.MagicAttack, 25, Element.Thunder, 0, 0, 12));
+            new BattleAbility("Rush", AbilityScript.EnemyPhysicalAttack, 24, Element.None, 100, 0, 0),
+            new BattleAbility("Thundara", AbilityScript.MagicAttack, 25, Element.Thunder, 0, 0, 12));
         var engine = new BattleEngine([knight], [wolf], EncounterKind.Preemptive, new RiggedDice(0, 1, 0));
 
         var e = engine.ExecuteEnemyTurn(wolf);
 
-        Assert.Equal("Thundara", e.Attack?.Name);
+        Assert.Equal("Thundara", e.Ability?.Name);
         Assert.Equal(275, e.Result.Damage);
         Assert.Equal(125, knight.CurrentHP);
         Assert.Equal(452, wolf.CurrentMP);
@@ -52,14 +52,14 @@ public class EnemyAttackTests
         // dice: target 0, hit 0, evade 50, attack die 0 → 11, crit q die 0 (0%4=0), crit 99
         // damage = 11 × max(22 − 6, 1) = 176
         var knight = Knight();
-        var wolf = Wolf(new EnemyAttack("Thundara", AbilityScript.MagicAttack, 25, Element.Thunder, 0, 0, 12));
+        var wolf = Wolf(new BattleAbility("Thundara", AbilityScript.MagicAttack, 25, Element.Thunder, 0, 0, 12));
         wolf.CurrentMP = 5;
         var engine = new BattleEngine([knight], [wolf], EncounterKind.Preemptive,
             new RiggedDice(0, 0, 50, 0, 0, 99));
 
         var e = engine.ExecuteEnemyTurn(wolf);
 
-        Assert.Null(e.Attack);
+        Assert.Null(e.Ability);
         Assert.Equal(176, e.Result.Damage);
         Assert.Equal(224, knight.CurrentHP);
     }
@@ -70,7 +70,7 @@ public class EnemyAttackTests
         // Tongue: script 11, rate 60 → hitRate = clamp(60 + (11>>2) + 14 − 14, 1, 100) = 62
         // dice: target 0, pick 0, accuracy 10 (62 > 10 → hit), evade 50 (MEvade 0 → no)
         var knight = Knight();
-        var wolf = Wolf(new EnemyAttack("Tongue", AbilityScript.MagicApplyNegativeStatus, 0, Element.None, 60, (UInt32)BattleStatus.Slow, 0));
+        var wolf = Wolf(new BattleAbility("Tongue", AbilityScript.MagicApplyNegativeStatus, 0, Element.None, 60, (UInt32)BattleStatus.Slow, 0));
         var engine = new BattleEngine([knight], [wolf], EncounterKind.Preemptive,
             new RiggedDice(0, 0, 10, 50));
 

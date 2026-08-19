@@ -44,10 +44,10 @@ public static class BattleCommand
                 var type = put.TypeNumber;
                 var unit = BattleUnit.FromEnemy(labels[line], scene.Monsters[type]);
                 unit.AttackPower = scene.Attacks[names[type].DefaultAttack].Power;
-                unit.Attacks.AddRange(rosters[type].Where(n => n < scene.Attacks.Count).Select(n =>
+                unit.Abilities.AddRange(rosters[type].Where(n => n < scene.Attacks.Count).Select(n =>
                 {
                     var a = scene.Attacks[n];
-                    return new EnemyAttack(
+                    return new BattleAbility(
                         attackNames.GetValueOrDefault(n, $"Attack {n}"),
                         (AbilityScript)a.ScriptID, a.Power, (Element)a.Elements, a.Rate,
                         db.StatusSets[a.AddStatusNo].StatusMask, a.MP, n, a.Target);
@@ -56,7 +56,7 @@ public static class BattleCommand
             })
             .ToList();
 
-        var threat = (Byte)enemies.SelectMany(e => e.Attacks)
+        var threat = (Byte)enemies.SelectMany(e => e.Abilities)
             .Aggregate(0, (mask, a) => mask | (Int32)a.Elements);
 
         var level = enemies.Max(e => e.Level);
@@ -171,8 +171,8 @@ public static class BattleCommand
 
     private static void Narrate(BattleEvent e)
     {
-        if (e.Attack is not null)
-            Console.WriteLine($"{e.Actor.Name} {(e.Attack.Script == AbilityScript.MagicAttack ? "casts" : "uses")} {e.Attack.Name}!");
+        if (e.Ability is not null)
+            Console.WriteLine($"{e.Actor.Name} {(e.Ability.Script == AbilityScript.MagicAttack ? "casts" : "uses")} {e.Ability.Name}!");
 
         var line = e.Result.Outcome switch
         {
@@ -183,9 +183,9 @@ public static class BattleCommand
             AttackOutcome.Absorbed => $"{e.Target.Name} drinks it in — absorbs {e.Result.Damage} HP!",
             AttackOutcome.Hit when e.Result.Damage == 0 && e.StatusesAdded != 0 => $"{e.Target.Name} is now {e.StatusesAdded}.",
             AttackOutcome.Hit when e.Result.Damage == 0 => $"{e.Target.Name} is unaffected.",
-            AttackOutcome.NoEffect when e.Attack is { } a && !Enum.IsDefined(a.Script)
+            AttackOutcome.NoEffect when e.Ability is { } a && !Enum.IsDefined(a.Script)
                 => $"{e.Actor.Name} is posturing — pure theatre.",
-            AttackOutcome.NoEffect => $"{e.Actor.Name}'s {e.Attack?.Name} fizzles (script {e.Attack?.Script} not implemented).",
+            AttackOutcome.NoEffect => $"{e.Actor.Name}'s {e.Ability?.Name} fizzles (script {e.Ability?.Script} not implemented).",
             AttackOutcome.Healed when e.Result.Damage > 0 => $"{e.Target.Name} recovers {e.Result.Damage} HP!",
             AttackOutcome.Healed => $"{e.Target.Name} is restored.",
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
@@ -232,7 +232,7 @@ public static class BattleCommand
                 var target = spell.DefaultAlly
                     ? PromptAlly(engine, spell.ForDead, "On whom? ")
                     : PromptEnemy(engine, "On which target? ");
-                return engine.ExecuteAbility(actor, target, new EnemyAttack(
+                return engine.ExecuteAbility(actor, target, new BattleAbility(
                     spell.Name, spell.Script, spell.Power, (Element)spell.Elements, spell.Rate,
                     db.StatusSets[spell.StatusIndex].StatusMask, spell.MP, -1, spell.TargetType,
                     spell.ForDead));

@@ -30,7 +30,7 @@ public sealed class BattleUnit
     
     public IEnemyBrain? Brain { get; set; }
     
-    public List<EnemyAttack> Attacks { get; } = [];
+    public List<BattleAbility> Abilities { get; } = [];
 
     public Boolean IsAlive => CurrentHP > 0;
     

@@ -1,4 +1,5 @@
 using Alexandria.Battle;
+using Alexandria.Rules;
 
 namespace Alexandria.Battle.Tests;
 
@@ -47,8 +48,9 @@ public class ElementTests
         wolf.GuardElements = Element.Fire;
         var engine = new BattleEngine([vivi], [wolf], EncounterKind.Preemptive, new RiggedDice(0));
 
-        var e = engine.ExecuteSpell(vivi, wolf, 42, 18, (UInt32)BattleStatus.Poison, 20, Element.Fire);
-
+        var e = engine.ExecuteAbility(vivi, wolf, new BattleAbility(
+            "Fire", AbilityScript.MagicAttack, 42, Element.Fire, 20, (UInt32)BattleStatus.Poison, 18));
+        
         Assert.Equal(AttackOutcome.Guarded, e.Result.Outcome);
         Assert.Equal(899, wolf.CurrentHP);
         Assert.False(wolf.Has(BattleStatus.Poison));
@@ -64,8 +66,9 @@ public class ElementTests
         wolf.CurrentHP = 500;
         var engine = new BattleEngine([vivi], [wolf], EncounterKind.Preemptive, new RiggedDice(0));
 
-        var e = engine.ExecuteSpell(vivi, wolf, 29, 6, element: Element.Darkness);
-
+        var e = engine.ExecuteAbility(vivi, wolf, new BattleAbility(
+            "Darkness", AbilityScript.MagicAttack, 29, Element.Darkness, 0, 0, 6));
+        
         Assert.Equal(AttackOutcome.Absorbed, e.Result.Outcome);
         Assert.Equal(899, wolf.CurrentHP);
     }
