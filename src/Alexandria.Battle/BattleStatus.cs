@@ -11,7 +11,7 @@ public enum BattleStatus : UInt32
     Blind = 1u << 4,
     Trouble = 1u << 5,
     Zombie = 1u << 6,
-    // bits 7 and 9 exist in the original; unnamed here until needed
+    EasyKill = 1u << 7,
     Death = 1u << 8,
     Confuse = 1u << 10,
     Berserk = 1u << 11,
