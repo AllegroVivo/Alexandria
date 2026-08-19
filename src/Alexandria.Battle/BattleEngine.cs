@@ -1,4 +1,5 @@
 using Alexandria.Formats.Scripts;
+using Alexandria.Rules;
 
 namespace Alexandria.Battle;
 
@@ -21,6 +22,25 @@ public sealed class BattleEngine
     private readonly EbVM? _director;
     private Int32 _openingFrames;
 
+    /// <summary>The ability scripts Resolve can run.</summary>
+    public static readonly HashSet<AbilityScript> ResolvableScripts =
+    [
+        AbilityScript.EnemyPhysicalAttack, 
+        AbilityScript.MagicAttack,
+        AbilityScript.MagicRecovery, 
+        AbilityScript.MagicApplyNegativeStatus, 
+        AbilityScript.MagicCureStatus,
+        AbilityScript.Revive, 
+        AbilityScript.DrainHp,
+        AbilityScript.MagicGravityDamage, 
+        AbilityScript.PreciseDirectHPDamage, 
+        AbilityScript.DirectHPDamage,
+        AbilityScript.WhiteWind,
+        AbilityScript.PreciseEnemyPhysicalAttack,
+        AbilityScript.MagicApplyPositiveStatus,
+        AbilityScript.Mini
+    ];
+
     public List<BattleUnit> Players { get; }
     public List<BattleUnit> Enemies { get; }
 
@@ -29,6 +49,9 @@ public sealed class BattleEngine
     /// <summary>Reactions fired by the last resolved action, for the caller to narrate
     /// (a counter's retaliation resolves as a normal enemy action).</summary>
     public List<BattleEvent> PendingReactions { get; } = [];
+
+    /// <summary>The second and subsequent targets of a group attack, for the caller to narrate.</summary>
+    public List<BattleEvent> PendingMultiHits { get; } = [];
 
     public BattleEngine(List<BattleUnit> players, List<BattleUnit> enemies,
         EncounterKind kind, Random rng, Int32 coefficient = ATBClock.NormalCoefficient,
@@ -93,7 +116,29 @@ public sealed class BattleEngine
             (unit.Brain as ScriptedBrain)?.Tick();
     }
 
+    /// <summary>Every unit named by a script's SV_Target mask (mirror:
+    /// btl_cmd.CheckTargetCondition). An empty or unusable mask falls back to
+    /// the single unit the brain nominated.</summary>
+    private List<BattleUnit> ExpandTargets(Int32 mask, BattleUnit fallback, Boolean forDead = false)
+    {
+        var named = new List<BattleUnit>();
+        for (var line = 0; line < 8; line++)
+            if ((mask >> line & 1) != 0 && _host?.UnitFromMask(1 << line) is { } unit)
+                named.Add(unit);
+
+        var usable = named.Where(u => forDead || u.IsAlive).ToList();
+        if (usable.Count > 0)
+            return usable;
+        if (forDead)
+            return [fallback];  // a revive keeps the fallen ally it was aimed at
+        return Revalidate(fallback) is { } one ? [one] : [];
+    }
+
     public Boolean IsEnemy(BattleUnit unit) => Enemies.Contains(unit);
+
+    /// <summary>A party member casting. Deliberately the same dispatch the enemies use.</summary>
+    public BattleEvent ExecuteAbility(BattleUnit actor, BattleUnit target, EnemyAttack ability)
+        => Resolve(actor, target, ability);
 
     /// <summary>Basic attack + damage application + gauge reset: one resolved turn.</summary>
     public BattleEvent ExecuteAttack(BattleUnit attacker, BattleUnit target,
@@ -114,10 +159,11 @@ public sealed class BattleEngine
     /// <summary>Cast + MP spend + damage + gauge reset: one resolved magic turn.</summary>
     public BattleEvent ExecuteSpell(BattleUnit caster, BattleUnit target, Int32 spellPower,
         Int32 mpCost, UInt32 riderStatuses = 0, Int32 riderRate = 0,
-        Element element = Element.None)
+        Element element = Element.None, Boolean multiTarget = false)
     {
         caster.CurrentMP -= mpCost;
-        var result = MagicAttack.Execute(caster, target, spellPower, _rng, element: element);
+        var result = MagicAttack.Execute(caster, target, spellPower,
+            _rng, multiTarget: multiTarget, element: element);
         var added = result.Outcome is AttackOutcome.Hit or AttackOutcome.Absorbed
                     && riderStatuses != 0 && riderRate > _rng.Rand16() % 100
             ? StatusApplication.Apply(target, (BattleStatus)riderStatuses, _statusTable)
@@ -167,7 +213,7 @@ public sealed class BattleEngine
         if (enemy.Brain is not null
             && enemy.Brain.Decide(enemy, Players, _rng) is var (attackId, chosen)
             && enemy.Attacks.FirstOrDefault(a => a.ID == attackId) is { } scripted)
-            return Resolve(enemy, chosen, scripted);
+            return Resolve(enemy, chosen, scripted, (enemy.Brain as ScriptedBrain)?.LastTargetMask ?? 0);
 
         var living = Players.Where(p => p.IsAlive).ToList();
         var target = living[_rng.Rand16() % living.Count];
@@ -175,7 +221,8 @@ public sealed class BattleEngine
         var usable = enemy.Attacks.Where(a => a.MP <= enemy.CurrentMP).ToList();
         if (usable.Count == 0)
             return ExecuteAttack(enemy, target);
-        return Resolve(enemy, target, usable[_rng.Rand16() % usable.Count]);
+        return Resolve(enemy, target, usable[_rng.Rand16() % usable.Count],
+            (enemy.Brain as ScriptedBrain)?.LastTargetMask ?? 0);
     }
 
     /// <summary>Mirror: SBattleCalculator.CalcResult's tail — every resolved
@@ -202,8 +249,9 @@ public sealed class BattleEngine
             if (brain.React(tag, 1 << Players.IndexOf(attacker), commandId, 0) is not { } attackId ||
                 target.Attacks.FirstOrDefault(a => a.ID == attackId) is not { } retaliation)
                 return;
-            var chosen = _host?.UnitFromMask(_host.SysList(0)) ?? attacker;
-            PendingReactions.Add(Resolve(target, chosen, retaliation));
+            var mask = _host?.SysList(0) ?? 0;
+            var chosen = _host?.UnitFromMask(mask) ?? attacker;
+            PendingReactions.Add(Resolve(target, chosen, retaliation, mask));
         }
         finally
         {
@@ -228,28 +276,43 @@ public sealed class BattleEngine
     /// <summary>Resolve an enemy attack through its ability-script id, the way vanilla
     /// dispatches via ScriptsLoader.GetBattleScript — ids we implement do their work,
     /// and an id with no script resolves to nothing.</summary>
-    private BattleEvent Resolve(BattleUnit actor, BattleUnit target, EnemyAttack attack)
+    private BattleEvent Resolve(BattleUnit actor, BattleUnit target, EnemyAttack attack, Int32 targetMask = 0)
     {
-        if (Revalidate(target) is not { } confirmed)
+        var targets = ExpandTargets(targetMask, target, attack.ForDead);
+        if (targets.Count == 0)
             return Choreography(actor, target);
-        
+
         actor.CurrentMP -= attack.MP;
-        var ev = attack.ScriptID switch
+        
+        // mirror: BattleCommand.IsDevided - only the "Many" target types pay the spread penalty; an
+        // inherently party-wide attack lands at full strength
+        var divided = targets.Count > 1 && attack.TargetType is >= 3 and <= 5;
+
+        var first = ResolveOne(actor, targets[0], attack, divided);
+        for (var i = 1; i < targets.Count; i++)
+            PendingMultiHits.Add(ResolveOne(actor, targets[i], attack, divided));
+        return first;
+    }
+    
+    private BattleEvent ResolveOne(BattleUnit actor, BattleUnit target, EnemyAttack attack, Boolean divided)
+    {
+        var ev = attack.Script switch
         {
-            8 => ExecuteAttack(actor, confirmed, attack.Power, attack.Elements),
-            9 => ExecuteSpell(actor, confirmed, attack.Power, 0, attack.StatusMask, attack.Rate, attack.Elements),
-            10 => ExecuteHeal(actor, confirmed, attack.Power),
-            11 => ExecuteStatusSpell(actor, confirmed, attack.StatusMask, attack.Rate, 0),
-            12 => ExecuteCure(actor, confirmed, attack.StatusMask),
-            16 => ExecuteDrainHP(actor, confirmed, attack.Power, attack.StatusMask, attack.Rate, attack.Elements),
-            17 => ExecuteGravity(actor, confirmed, attack.Power, attack.Rate),
-            25 => ExecuteDirectHP(actor, confirmed, attack.Power, attack.Rate, precise: true),
-            27 => ExecuteDirectHP(actor, confirmed, attack.Power, attack.Rate, precise: false),
-            30 => ExecuteWhiteWind(actor, confirmed, attack.Power),
-            100 => ExecuteAttack(actor, confirmed, attack.Power, attack.Elements, precise: true),
-            103 => ExecuteBuff(actor, confirmed, attack.StatusMask),
-            109 => ExecuteMini(actor, confirmed, attack.StatusMask, attack.Rate),
-            _ => Choreography(actor, confirmed)
+            AbilityScript.EnemyPhysicalAttack => ExecuteAttack(actor, target, attack.Power, attack.Elements),
+            AbilityScript.MagicAttack => ExecuteSpell(actor, target, attack.Power, 0, attack.StatusMask, attack.Rate, attack.Elements, divided),
+            AbilityScript.MagicRecovery => ExecuteHeal(actor, target, attack.Power),
+            AbilityScript.MagicApplyNegativeStatus => ExecuteStatusSpell(actor, target, attack.StatusMask, attack.Rate, 0),
+            AbilityScript.MagicCureStatus => ExecuteCure(actor, target, attack.StatusMask),
+            AbilityScript.Revive => ExecuteRevive(actor, target, attack.Power, attack.StatusMask),
+            AbilityScript.DrainHp => ExecuteDrainHP(actor, target, attack.Power, attack.StatusMask, attack.Rate, attack.Elements),
+            AbilityScript.MagicGravityDamage => ExecuteGravity(actor, target, attack.Power, attack.Rate, divided),
+            AbilityScript.PreciseDirectHPDamage => ExecuteDirectHP(actor, target, attack.Power, attack.Rate, precise: true),
+            AbilityScript.DirectHPDamage => ExecuteDirectHP(actor, target, attack.Power, attack.Rate, precise: false),
+            AbilityScript.WhiteWind => ExecuteWhiteWind(actor, target, attack.Power),
+            AbilityScript.PreciseEnemyPhysicalAttack => ExecuteAttack(actor, target, attack.Power, attack.Elements, precise: true),
+            AbilityScript.MagicApplyPositiveStatus => ExecuteBuff(actor, target, attack.StatusMask),
+            AbilityScript.Mini => ExecuteMini(actor, target, attack.StatusMask, attack.Rate, divided),
+            _ => Choreography(actor, target)
         };
         return ev with { Attack = attack };
     }
@@ -265,10 +328,12 @@ public sealed class BattleEngine
     /// <summary>Mirror: BattleCalculator.MagicAccuracy + TryMagicHit — the ability's own
     /// rate plus Magic/4 plus the level difference, clamped to 1..100 and halved by Shell.
     /// </summary>
-    private AttackOutcome MagicRoll(BattleUnit caster, BattleUnit target, Int32 baseRate)
+    private AttackOutcome MagicRoll(BattleUnit caster, BattleUnit target, Int32 baseRate, Boolean divided = false)
     {
         var hitRate = Math.Clamp(baseRate + (caster.Magic >> 2) + caster.Level - target.Level, 1, 100);
         if (target.Has(BattleStatus.Shell))
+            hitRate /= 2;
+        if (divided)
             hitRate /= 2;
         if (hitRate <= _rng.Rand16() % 100)
             return AttackOutcome.Miss;
@@ -280,9 +345,10 @@ public sealed class BattleEngine
     /// <summary>Proportional damage (mirror: 0017_MagicGravityDamageScript →
     /// CalcProportionDamage): a fixed percentage of the target's MAXIMUM HP, capped at
     /// 100%.</summary>
-    public BattleEvent ExecuteGravity(BattleUnit caster, BattleUnit target, Int32 power, Int32 rate)
+    public BattleEvent ExecuteGravity(BattleUnit caster, BattleUnit target, Int32 power, Int32 rate,
+        Boolean divided = false)
     {
-        var outcome = MagicRoll(caster, target, rate);
+        var outcome = MagicRoll(caster, target, rate, divided);
         var damage = 0;
         if (outcome == AttackOutcome.Hit)
         {
@@ -376,17 +442,34 @@ public sealed class BattleEngine
 
     /// <summary>Mini (mirror: 0109_MiniScript): a target already shrunk is re-hit with no
     /// roll at all — that is how the spell reliably un-shrinks.</summary>
-    public BattleEvent ExecuteMini(BattleUnit caster, BattleUnit target, UInt32 statusMask, Int32 rate)
+    public BattleEvent ExecuteMini(BattleUnit caster, BattleUnit target, UInt32 statusMask, Int32 rate,
+        Boolean divided = false)
     {
         var outcome = target.Has(BattleStatus.Mini)
             ? AttackOutcome.Hit
-            : MagicRoll(caster, target, rate);
+            : MagicRoll(caster, target, rate, divided);
         BattleStatus landed = 0;
         if (outcome == AttackOutcome.Hit)
             landed = StatusApplication.Apply(target, (BattleStatus)statusMask, _statusTable);
         ATBClock.ResetAfterAction(caster);
         Provoke(caster, target, 22);
         return new BattleEvent(caster, target, new AttackResult(outcome, 0), landed);
+    }
+
+    /// <summary>Revive (mirror: 0013_ReviveScript): a fallen unit returns with
+    /// (Spirit + power)% of maximum HP.</summary>
+    public BattleEvent ExecuteRevive(BattleUnit caster, BattleUnit target, Int32 power, UInt32 statusMask)
+    {
+        if (target.IsAlive || target.Has(BattleStatus.Petrify))
+        {
+            ATBClock.ResetAfterAction(caster);
+            return new BattleEvent(caster, target, new AttackResult(AttackOutcome.Miss, 0));
+        }
+        var restored = Math.Min(target.MaxHP * (target.Spirit + power) / 100, target.MaxHP);
+        target.CurrentHP = restored;
+        StatusApplication.Remove(target, (BattleStatus)statusMask | BattleStatus.Death);
+        ATBClock.ResetAfterAction(caster);
+        return new BattleEvent(caster, target, new AttackResult(AttackOutcome.Healed, restored));
     }
 }
 

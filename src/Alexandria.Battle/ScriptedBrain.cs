@@ -15,6 +15,11 @@ public sealed class ScriptedBrain : IEnemyBrain
     private readonly EbEntry _entry;
 
     private const Int32 MainLoopLevel = 7; // cEventLevelN - 1, the idle priority
+    
+    /// <summary>The full SV_Target mask from the last Decide. A scripted attack may
+    /// legally name several units at once and the engine fans out over this rather
+    /// than the single unit Decide returns.</summary>
+    public Int32 LastTargetMask { get; private set; }
 
     public ScriptedBrain(EbEntry entry, EngineHost host, Int32 selfLine, EbState? state = null)
     {
@@ -41,9 +46,10 @@ public sealed class ScriptedBrain : IEnemyBrain
         _host.BeginSlice(_selfLine);
         _host.ChosenAttack = null;
         _vm.RunFunction(5);
+        LastTargetMask = _host.SysList(0);
         var attack = _host.ChosenAttack
                      ?? throw new InvalidOperationException($"{self.Name}'s atb ended without a BTLCMD");
-        return (attack, _host.UnitFromMask(_host.SysList(0)) ?? self);
+        return (attack, _host.UnitFromMask(LastTargetMask) ?? self);
     }
 
     /// <summary>Runs a reaction function if this mind has one (mirror:

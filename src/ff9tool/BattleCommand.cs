@@ -44,25 +44,21 @@ public static class BattleCommand
                 var type = put.TypeNumber;
                 var unit = BattleUnit.FromEnemy(labels[line], scene.Monsters[type]);
                 unit.AttackPower = scene.Attacks[names[type].DefaultAttack].Power;
-                unit.Attacks.AddRange(rosters[type].Where(n=>n<scene.Attacks.Count).Select(n =>
+                unit.Attacks.AddRange(rosters[type].Where(n => n < scene.Attacks.Count).Select(n =>
                 {
                     var a = scene.Attacks[n];
                     return new EnemyAttack(
                         attackNames.GetValueOrDefault(n, $"Attack {n}"),
-                        a.ScriptID, a.Power, (Element)a.Elements, a.Rate,
-                        db.StatusSets[a.AddStatusNo].StatusMask, a.MP, n);
+                        (AbilityScript)a.ScriptID, a.Power, (Element)a.Elements, a.Rate,
+                        db.StatusSets[a.AddStatusNo].StatusMask, a.MP, n, a.Target);
                 }));
                 return unit;
             })
             .ToList();
 
         var level = enemies.Max(e => e.Level);
-        var party = new List<BattleUnit>
-        {
-            BuildCharacter(db, "Zidane", level),
-            BuildCharacter(db, "Steiner", level),
-            BuildCharacter(db, "Vivi", level)
-        };
+        var partyNames = args.Length > 2 ? args[2].Split(',') : ["Zidane", "Garnet", "Steiner", "Vivi"];
+        var party = partyNames.Select(n => BuildCharacter(db, n, level)).ToList();
         var host = new EngineHost(party, enemies, rng) { Pattern = pattern };
         var state = new EbState();
         EbVM? director;
@@ -86,12 +82,12 @@ public static class BattleCommand
         var mesPath = Path.Combine(@"C:\Dev\Memoria\FF9Data\Text\Battle",
             sceneIDS[Path.GetFileName(sceneDir)["EVT_BATTLE_".Length..]] + ".mes");
         var battleText = File.Exists(mesPath) ? BattleText.Load(mesPath) : null;
-        
+
         var spellbook = party.ToDictionary(
             p => p.Name,
             p => Spellbook.For(db, p.Name,
                     APEarned.LearnedActives(db.Learnables.GetValueOrDefault(p.Name, []), p.Level))
-                .Where(s => s.ScriptID is 9 or 11).ToList());
+                .Where(s => BattleEngine.ResolvableScripts.Contains(s.Script)).ToList());
 
         Console.WriteLine($"— {String.Join(" and ", enemies.Select(e => e.Name))} appeared! —");
 
@@ -107,7 +103,7 @@ public static class BattleCommand
         while (engine.TickUntilReady() is { } ready)
         {
             NarrateTicks(engine);
-
+            
             if (engine.IsEnemy(ready))
             {
                 Narrate(engine.ExecuteEnemyTurn(ready));
@@ -120,13 +116,17 @@ public static class BattleCommand
             }
             else
                 Narrate(TakePlayerTurn(db, engine, ready, spellbook));
-
+            
             foreach (var reaction in engine.PendingReactions)
             {
                 Console.WriteLine("  — counterattack! —");
                 Narrate(reaction);
             }
             engine.PendingReactions.Clear();
+
+            foreach (var hit in engine.PendingMultiHits)
+                Narrate(hit);
+            engine.PendingMultiHits.Clear();
         }
         NarrateTicks(engine);
 
@@ -168,7 +168,7 @@ public static class BattleCommand
     private static void Narrate(BattleEvent e)
     {
         if (e.Attack is not null)
-            Console.WriteLine($"{e.Actor.Name} {(e.Attack.ScriptID == 9 ? "casts" : "uses")} {e.Attack.Name}!");
+            Console.WriteLine($"{e.Actor.Name} {(e.Attack.Script == AbilityScript.MagicAttack ? "casts" : "uses")} {e.Attack.Name}!");
 
         var line = e.Result.Outcome switch
         {
@@ -178,8 +178,9 @@ public static class BattleCommand
             AttackOutcome.Guarded => $"{e.Target.Name} nulls it — no effect!",
             AttackOutcome.Absorbed => $"{e.Target.Name} drinks it in — absorbs {e.Result.Damage} HP!",
             AttackOutcome.Hit when e.Result.Damage == 0 => $"{e.Target.Name} succumbs!",
-            AttackOutcome.NoEffect when e.Attack?.ScriptID == 64 => $"{e.Actor.Name} is posturing — pure theatre.",
-            AttackOutcome.NoEffect => $"{e.Actor.Name}'s {e.Attack?.Name} fizzles (script {e.Attack?.ScriptID} not implemented).",
+            AttackOutcome.NoEffect when e.Attack is { } a && !Enum.IsDefined(a.Script)
+                => $"{e.Actor.Name} is posturing — pure theatre.",
+            AttackOutcome.NoEffect => $"{e.Actor.Name}'s {e.Attack?.Name} fizzles (script {e.Attack?.Script} not implemented).",
             AttackOutcome.Healed when e.Result.Damage > 0 => $"{e.Target.Name} recovers {e.Result.Damage} HP!",
             AttackOutcome.Healed => $"{e.Target.Name} is restored.",
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
@@ -221,17 +222,15 @@ public static class BattleCommand
             {
                 for (var i = 0; i < castable.Count; i++)
                     Console.WriteLine($"  [{i + 1}] {castable[i].Name}  (MP {castable[i].MP})");
-
+                
                 var spell = Prompt(castable, s => s.Name, $"{actor.Name} casts which spell? ");
-
-                var target = PromptEnemy(engine, $"On which target? ");
-                Console.WriteLine($"{actor.Name} casts {spell.Name}!");
-                return spell.ScriptID == 11
-                    ? engine.ExecuteStatusSpell(actor, target,
-                        db.StatusSets[spell.StatusIndex].StatusMask, spell.Rate, spell.MP)
-                    : engine.ExecuteSpell(actor, target, spell.Power, spell.MP,
-                        db.StatusSets[spell.StatusIndex].StatusMask, spell.Rate,
-                        (Element)spell.Elements);
+                var target = spell.DefaultAlly
+                    ? PromptAlly(engine, spell.ForDead, "On whom? ")
+                    : PromptEnemy(engine, "On which target? ");
+                return engine.ExecuteAbility(actor, target, new EnemyAttack(
+                    spell.Name, spell.Script, spell.Power, (Element)spell.Elements, spell.Rate,
+                    db.StatusSets[spell.StatusIndex].StatusMask, spell.MP, -1, spell.TargetType,
+                    spell.ForDead));
             }
         }
         return engine.ExecuteAttack(actor, PromptEnemy(engine, $"{actor.Name} attacks which target? "));
@@ -253,5 +252,15 @@ public static class BattleCommand
         for (var i = 0; i < living.Count; i++)
             Console.WriteLine($"  [{i + 1}] {living[i].Name}  HP {living[i].CurrentHP}/{living[i].MaxHP}");
         return Prompt(living, e => e.Name, question);
+    }
+
+    private static BattleUnit PromptAlly(BattleEngine engine, Boolean forDead, String question)
+    {
+        var choices = engine.Players.Where(p => forDead ? !p.IsAlive : p.IsAlive).ToList();
+        if (choices.Count == 0)
+            choices = [.. engine.Players];
+        for (var i = 0; i < choices.Count; i++)
+            Console.WriteLine($"  [{i + 1}] {choices[i].Name}  HP {choices[i].CurrentHP}/{choices[i].MaxHP}");
+        return Prompt(choices, p => p.Name, question);
     }
 }
