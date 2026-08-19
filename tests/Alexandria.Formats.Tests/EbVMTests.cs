@@ -17,6 +17,7 @@ public class EbVMTests
         public void BattleSet(Int32 verb, Int32 value) => throw new NotSupportedException();
         public void SetTextVariable(Int32 scriptId, Int32 value) => throw new NotSupportedException();
         public void AttackSpecial(Int32 attackId) => throw new NotSupportedException();
+        public void Spawn(Int32 entry, Int32 uid) => throw new NotSupportedException();
     }
 
     private static EbVM TypeC(params Int32[] rolls)

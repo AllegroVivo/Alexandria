@@ -218,7 +218,7 @@ public static class ExprDecoder
         20 => "PlayTime", 24 => "BattleMap",
         25 => "SeqBusy", 26 => "InBattle", 27 => "BattleResult",
         28 => "CurCommand", 29 => "CurAbility", 30 => "BattlePhase",
-        31 => "EnemyCount", 33 => "PartyGil",
+        31 => "BattlePattern", 33 => "PartyGil",
         36 => "Attacker", 37 => "CurTargets",
         38 => "CasterWeaponElement", 39 => "CurElement",
         40 => "LoadStatus", 41 => "BonusExp", 44 => "BonusAP",

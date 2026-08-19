@@ -25,12 +25,26 @@ public static class BattleCommand
             .Select(f => Path.GetFileNameWithoutExtension(f))
             .ToDictionary(s => Int32.Parse(s[..2]), s => s[3..]);
 
-        var enemies = scene.Monsters
-            .Select((m, i) =>
+        var pattern = args.Length > 1 ? Int32.Parse(args[1]) : 0;
+        var formation = scene.Formations[pattern];
+        var placements = formation.Monsters.Take(Math.Min(formation.MonsterCount, (Byte)4)).ToList();
+
+        var labels = placements.Select((put, i) =>
+        {
+            var baseName = names[put.TypeNumber].DisplayName;
+            if (placements.Count(p => p.TypeNumber == put.TypeNumber) == 1)
+                return baseName;
+            var ordinal = placements.Take(i + 1).Count(p => p.TypeNumber == put.TypeNumber);
+            return $"{baseName} {(Char)('A' + ordinal - 1)}";
+        }).ToList();
+
+        var enemies = placements
+            .Select((put, line) =>
             {
-                var unit = BattleUnit.FromEnemy(names[i].DisplayName, m);
-                unit.AttackPower = scene.Attacks[names[i].DefaultAttack].Power;
-                unit.Attacks.AddRange(rosters[i].Where(n => n < scene.Attacks.Count).Select(n =>
+                var type = put.TypeNumber;
+                var unit = BattleUnit.FromEnemy(labels[line], scene.Monsters[type]);
+                unit.AttackPower = scene.Attacks[names[type].DefaultAttack].Power;
+                unit.Attacks.AddRange(rosters[type].Where(n=>n<scene.Attacks.Count).Select(n =>
                 {
                     var a = scene.Attacks[n];
                     return new EnemyAttack(
@@ -49,7 +63,7 @@ public static class BattleCommand
             BuildCharacter(db, "Steiner", level),
             BuildCharacter(db, "Vivi", level)
         };
-        var host = new EngineHost(party, enemies, rng);
+        var host = new EngineHost(party, enemies, rng) { Pattern = pattern };
         var state = new EbState();
         EbVM? director;
         using (var eb = new BinaryReader(File.OpenRead(
@@ -57,9 +71,15 @@ public static class BattleCommand
         {
             var script = EbScript.Read(eb);
             director = new EbVM(script.Entries[0], host, state);
+            director.RunFunction(0);
+
+            for (var line = 0; line < enemies.Count; line++)
+            {
+                var entryIndex = line < host.SpawnedEntries.Count ? host.SpawnedEntries[line] : line + 1;
+                enemies[line].Brain = new ScriptedBrain(script.Entries[entryIndex], host, selfLine: 4 + line, state);
+            }
+            
             director.Request(1, 7);
-            for (var i = 0; i < enemies.Count; i++)
-                enemies[i].Brain = new ScriptedBrain(script.Entries[i + 1], host, selfLine: 4 + i, state);
         }
 
         var sceneIDS = SceneIDs.Load(@"C:\Dev\Memoria\FF9Data\SceneData.csv");

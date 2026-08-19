@@ -16,4 +16,5 @@ public interface IEbHost
     void BattleSet(Int32 verb, Int32 value); // BTLSET 0x4A — the stage verbs
     void SetTextVariable(Int32 scriptId, Int32 value); // MESVALUE 0x66
     void AttackSpecial(Int32 attackId); // BTLSEQ 0xE5 — target rides in SysList[0]
+    void Spawn(Int32 entry, Int32 uid); // NEW/NEW2/NEW3 0x07-0x09 — declare a script object
 }

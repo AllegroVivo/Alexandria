@@ -40,6 +40,15 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
     public Int32? Result;
 
     public Int32 GilEarned;
+    
+    /// <summary>Mirror: sysvar 31 = btl_scene.PatNum — which SB2_PATTERN formation this
+    /// encounter uses.</summary>
+    public Int32 Pattern { get; set; }
+
+    /// <summary>Entries spawned by the director's init, in order. Mirror: StartEvents
+    /// seats the party in _objPtrList[0..3] then hard-resets _opLStart to 4, so the Nth
+    /// spawn in battle mode takes battle line 4 + N.</summary>
+    public readonly List<Int32> SpawnedEntries = [];
 
     /// <summary>Mirror: ProcessCodeExt seeds SV_FunctionEnemy with the running
     /// object's own mask before every slice of battle code.</summary>
@@ -80,6 +89,7 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
         28 => _reactCommand, // CurCommand: what provoked the reaction
         29 => _reactAbility, // CurAbility: its ability/sub id
         30 => Phase, // BattlePhase: the in-battle phase every wait-loop waits for
+        31 => Pattern,
         34 => Phase, // same field via GetBattleData
         36 => -1, // Attacker: GetBattleData returns UInt32.MaxValue → -1 when no command is in flight
         40 => 0x7F, // LoadStatus (btl_load_status): BBG|NPC|CHR|INITNPC|INITCHR|FADENPC|FADECHR
@@ -98,6 +108,8 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
     public void SetSysList(Int32 slot, Int32 value) => _sysList[slot] = (UInt16)value;
 
     public void BattleDialog(Int32 textId) => PendingDialogs.Add(textId);
+
+    public void Spawn(Int32 entry, Int32 uid) => SpawnedEntries.Add(entry);
 
     public Int32 ReadStat(Int32 mask, Int32 statId)
     {

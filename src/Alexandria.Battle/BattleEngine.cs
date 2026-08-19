@@ -211,28 +211,45 @@ public sealed class BattleEngine
         }
     }
 
+    /// <summary>Mirror: btl_cmd.CheckTargetCondition (:1209-1259). A script may legally
+    /// name a dead target — GetBattleID carries no alive filter — so the engine revalidates
+    /// just before the command runs: a fallen target is replaced by a random living unit
+    /// from the same side, and only when that whole side is down does the action lapse.
+    /// Divergence: vanilla's ForDead abilities (revive) may keep a dead player as their
+    /// target.</summary>
+    private BattleUnit? Revalidate(BattleUnit target)
+    {
+        if (target.IsAlive)
+            return target;
+        var side = (IsEnemy(target) ? Enemies : Players).Where(u => u.IsAlive).ToList();
+        return side.Count == 0 ? null : side[_rng.Rand16() % side.Count];
+    }
+
     /// <summary>Resolve an enemy attack through its ability-script id, the way vanilla
     /// dispatches via ScriptsLoader.GetBattleScript — ids we implement do their work,
     /// and an id with no script resolves to nothing.</summary>
     private BattleEvent Resolve(BattleUnit actor, BattleUnit target, EnemyAttack attack)
     {
+        if (Revalidate(target) is not { } confirmed)
+            return Choreography(actor, target);
+        
         actor.CurrentMP -= attack.MP;
         var ev = attack.ScriptID switch
         {
-            8 => ExecuteAttack(actor, target, attack.Power, attack.Elements),
-            9 => ExecuteSpell(actor, target, attack.Power, 0, attack.StatusMask, attack.Rate, attack.Elements),
-            10 => ExecuteHeal(actor, target, attack.Power),
-            11 => ExecuteStatusSpell(actor, target, attack.StatusMask, attack.Rate, 0),
-            12 => ExecuteCure(actor, target, attack.StatusMask),
-            16 => ExecuteDrainHP(actor, target, attack.Power, attack.StatusMask, attack.Rate, attack.Elements),
-            17 => ExecuteGravity(actor, target, attack.Power, attack.Rate),
-            25 => ExecuteDirectHP(actor, target, attack.Power, attack.Rate, precise: true),
-            27 => ExecuteDirectHP(actor, target, attack.Power, attack.Rate, precise: false),
-            30 => ExecuteWhiteWind(actor, target, attack.Power),
-            100 => ExecuteAttack(actor, target, attack.Power, attack.Elements, precise: true),
-            103 => ExecuteBuff(actor, target, attack.StatusMask),
-            109 => ExecuteMini(actor, target, attack.StatusMask, attack.Rate),
-            _ => Choreography(actor, target)
+            8 => ExecuteAttack(actor, confirmed, attack.Power, attack.Elements),
+            9 => ExecuteSpell(actor, confirmed, attack.Power, 0, attack.StatusMask, attack.Rate, attack.Elements),
+            10 => ExecuteHeal(actor, confirmed, attack.Power),
+            11 => ExecuteStatusSpell(actor, confirmed, attack.StatusMask, attack.Rate, 0),
+            12 => ExecuteCure(actor, confirmed, attack.StatusMask),
+            16 => ExecuteDrainHP(actor, confirmed, attack.Power, attack.StatusMask, attack.Rate, attack.Elements),
+            17 => ExecuteGravity(actor, confirmed, attack.Power, attack.Rate),
+            25 => ExecuteDirectHP(actor, confirmed, attack.Power, attack.Rate, precise: true),
+            27 => ExecuteDirectHP(actor, confirmed, attack.Power, attack.Rate, precise: false),
+            30 => ExecuteWhiteWind(actor, confirmed, attack.Power),
+            100 => ExecuteAttack(actor, confirmed, attack.Power, attack.Elements, precise: true),
+            103 => ExecuteBuff(actor, confirmed, attack.StatusMask),
+            109 => ExecuteMini(actor, confirmed, attack.StatusMask, attack.Rate),
+            _ => Choreography(actor, confirmed)
         };
         return ev with { Attack = attack };
     }

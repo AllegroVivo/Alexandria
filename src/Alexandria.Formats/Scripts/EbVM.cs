@@ -322,6 +322,14 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
                     break;
                 }
 
+                case Op.InitCode or Op.InitRegion or Op.InitObject:
+                {
+                    var entryIndex = code[_pos++];
+                    var uid = code[_pos++];
+                    host.Spawn(entryIndex, uid);
+                    break;
+                }
+
                 default:
                     throw new NotSupportedException(
                         $"opcode 0x{op:X2} at @{_current.EntryPoint + _pos - 1} — teach me");
@@ -741,6 +749,9 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         public const Int32 Return = 0x04;
         public const Int32 Eval = 0x05; // EXPR
         public const Int32 SwitchCase = 0x06; // explicit case values
+        public const Int32 InitCode = 0x07;   // NEW  — an independent thread
+        public const Int32 InitRegion = 0x08; // NEW2 — a region thread
+        public const Int32 InitObject = 0x09; // NEW3 — an object thread; (battle enemies)
         public const Int32 SwitchRange = 0x0B; // min..min+count−1
         public const Int32 Wait = 0x22; // WAIT — park N frames
         public const Int32 BattleCommand = 0x38; // BTLCMD — the script acts

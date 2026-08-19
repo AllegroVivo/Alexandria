@@ -51,6 +51,7 @@ public class EbVmOracleTests
         public void BattleSet(Int32 verb, Int32 value) => throw new NotSupportedException();
         public void SetTextVariable(Int32 scriptId, Int32 value) => throw new NotSupportedException();
         public void AttackSpecial(Int32 attackId) => throw new NotSupportedException();
+        public void Spawn(Int32 entry, Int32 uid) => throw new NotSupportedException();
     }
 
     // ---- local builders (mirrors of the ones in EnemyBrainTests) ----
