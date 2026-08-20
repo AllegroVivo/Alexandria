@@ -60,12 +60,12 @@ public class StatusEffectTests
     {
         var sleeper = Target(BattleStatus.Sleep);
         var fighter = Attacker();
-        var engine = new BattleEngine([fighter], [sleeper], EncounterKind.Normal, new RiggedDice(0, 0, 0, 50, 2, 0, 50));
+        var engine = new BattleEngine([fighter], [sleeper], EncounterKind.Normal, new RiggedDice(0, 0, 0, 50, 2, 0, 50, 0));
 
         sleeper.ATBGauge = sleeper.ATBMax;              // full…
         Assert.Same(fighter, engine.TickUntilReady());  // …but never chosen
 
-        engine.ExecuteAttack(fighter, sleeper);         // pain wakes
+        engine.ExecuteAttack(fighter, sleeper);         // pain wakes; the last die is the trance fill
         Assert.False(sleeper.Has(BattleStatus.Sleep));
     }
 }

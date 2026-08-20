@@ -195,8 +195,10 @@ public sealed partial class BattleEngine
     /// <summary>Mirror: SBattleCalculator.CheckDamageReaction - being acted on by the
     /// OTHER side raises the gauge by `rand16 % Spirit`, and topping it out is what puts
     /// the unit into Trance.</summary>
-    private void FillTrance(BattleUnit caster, BattleUnit target)
+    private void FillTrance(BattleUnit caster, BattleUnit target, AttackResult result)
     {
+        if (result.Outcome is not (AttackOutcome.Hit or AttackOutcome.CriticalHit) || result.Damage <= 0)
+            return;
         if (IsEnemy(caster) == IsEnemy(target) || !target.HasTrance || !target.IsAlive)
             return;
         if (target.Has(BattleStatus.CannotTrance) || target.Spirit <= 0)
@@ -232,7 +234,7 @@ public sealed partial class BattleEngine
     private BattleEvent Finish(BattleUnit caster, BattleUnit target, AttackResult result, BattleStatus landed = 0)
     {
         ATBClock.ResetAfterAction(caster);
-        FillTrance(caster, target);
+        FillTrance(caster, target, result);
         Provoke(caster, target);
         return new BattleEvent(caster, target, result, landed);
     }

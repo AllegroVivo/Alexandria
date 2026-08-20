@@ -29,13 +29,14 @@ public class BattleAbilityTests
     [Fact]
     public void Enemy_picks_a_spell_from_its_roster_and_casts_it()
     {
-        // dice: target 0%1, pick 1 → Thundara, magic attack die 0 → attack = Magic 11
+        // dice: target 0%1, pick 1 → Thundara, magic attack die 0 → attack = Magic 11,
+        // trance fill 0 (damage now draws one)
         // damage = 11 × max(25 − 0, 1) = 275; MP 464 − 12 = 452
         var knight = Knight();
         var wolf = Wolf(
             new BattleAbility("Rush", AbilityScript.EnemyPhysicalAttack, 24, Element.None, 100, 0, 0),
             new BattleAbility("Thundara", AbilityScript.MagicAttack, 25, Element.Thunder, 0, 0, 12));
-        var engine = new BattleEngine([knight], [wolf], EncounterKind.Preemptive, new RiggedDice(0, 1, 0));
+        var engine = new BattleEngine([knight], [wolf], EncounterKind.Preemptive, new RiggedDice(0, 1, 0, 0));
 
         var e = engine.ExecuteEnemyTurn(wolf);
 
@@ -49,13 +50,14 @@ public class BattleAbilityTests
     public void Broke_enemy_falls_back_to_its_basic_attack()
     {
         // no affordable roster entry → plain ExecuteAttack with AttackPower 22
-        // dice: target 0, hit 0, evade 50, attack die 0 → 11, crit q die 0 (0%4=0), crit 99
+        // dice: target 0, hit 0, evade 50, attack die 0 → 11, crit q die 0 (0%4=0), crit 99,
+        // trance fill 0 (damage now draws one)
         // damage = 11 × max(22 − 6, 1) = 176
         var knight = Knight();
         var wolf = Wolf(new BattleAbility("Thundara", AbilityScript.MagicAttack, 25, Element.Thunder, 0, 0, 12));
         wolf.CurrentMP = 5;
         var engine = new BattleEngine([knight], [wolf], EncounterKind.Preemptive,
-            new RiggedDice(0, 0, 50, 0, 0, 99));
+            new RiggedDice(0, 0, 50, 0, 0, 99, 0));
 
         var e = engine.ExecuteEnemyTurn(wolf);
 
