@@ -75,6 +75,8 @@ public static class BattleCommand
         var level = enemies.Max(e => e.Level);
         var partyNames = args.Length > 2 ? args[2].Split(',') : ["Zidane", "Garnet", "Steiner", "Vivi"];
         var party = partyNames.Select(n => BuildCharacter(db, n, level, threat)).ToList();
+        foreach (var member in party)
+            member.TranceGauge = 200;
         var host = new EngineHost(party, enemies, rng) { Pattern = pattern };
         var world = new WorldState
         {

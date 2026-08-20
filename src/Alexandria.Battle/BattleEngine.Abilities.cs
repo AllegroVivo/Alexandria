@@ -53,6 +53,14 @@ public sealed partial class BattleEngine
     private BattleEvent LandStatuses(BattleUnit caster, BattleUnit target, BattleStatus statuses)
         => Finish(caster, target, new AttackResult(
             AttackOutcome.Hit, 0), StatusApplication.Apply(target, statuses, _statusTable));
+
+    /// <summary>Rider statuses on a damage ability (mirror: TryAlterMagicStatuses): one
+    /// flat rate roll, independent of the damage.</summary>
+    private BattleStatus RollRiders(BattleUnit target, BattleAbility ability, AttackResult result)
+        => result.Outcome is AttackOutcome.Hit or AttackOutcome.Absorbed
+           && ability.StatusMask != 0 && ability.Rate > _rng.Rand16() % 100
+            ? StatusApplication.Apply(target, ability.StatusMask, _statusTable)
+            : 0;
     
     // AbilityScript.BaseWeapon,
     // AbilityScript.SimpleWeapon,
@@ -85,10 +93,7 @@ public sealed partial class BattleEngine
             _rng, multiTarget: divided, element: ability.Elements,
             attackOverride: attackOverride, ignoreDefense: ignoreDefense,
             damageModifiers: TranceBonus(caster));
-        var added = result.Outcome is AttackOutcome.Hit or AttackOutcome.Absorbed
-                    && ability.StatusMask != 0 && ability.Rate > _rng.Rand16() % 100
-            ? StatusApplication.Apply(target, ability.StatusMask, _statusTable)
-            : 0;
+        var added = RollRiders(target, ability, result);
         PhysicalAttack.Apply(target, result);
         return Finish(caster, target, result, added);
     }
@@ -214,9 +219,31 @@ public sealed partial class BattleEngine
     public BattleEvent ExecuteMeteorite(BattleUnit caster, BattleUnit target, BattleAbility ability, Boolean divided = false)
         => ExecuteSpell(caster, target, ability, divided,
             attackOverride: +_rng.Rand16() % (caster.Magic + caster.Level), ignoreDefense: true);
-    
-    // AbilityScript.PhysicalAttack,
-    // AbilityScript.OriginalMagicAttack,
+
+    public BattleEvent ExecutePhysicalAttack(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var result = PhysicalAttack.Execute(caster, target,
+            caster.AttackPower * ability.Power / 10, _rng,
+            enemyStyle: IsEnemy(caster), element: caster.WeaponElement, precise: true,
+            damageModifiers: TranceBonus(caster));
+        PhysicalAttack.Apply(target, result);
+        return Finish(caster, target, result, RollRiders(target, ability, result));
+    }
+
+    /// <summary> (mirror: 0020_OriginalMagicAttackScript): magic-shaped damage driven by
+    /// the weapon. Power is `weapon * ability / 10` and the attack roll is the caster's
+    /// LOW PHYSICAL roll (SetLowPhysicalAttack), but it lands against MAGIC defense
+    /// and is halved by Shell.</summary>
+    public BattleEvent ExecuteOriginalMagicAttack(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var attack = caster.Strength + _rng.Rand16() % (1 + ((caster.Level + caster.Strength) >> 2));
+        var result = MagicAttack.Execute(caster, target,
+            caster.AttackPower * ability.Power / 10, _rng,
+            multiTarget: false, element: ability.Elements,
+            attackOverride: attack, damageModifiers: TranceBonus(caster));
+        PhysicalAttack.Apply(target, result);
+        return Finish(caster, target, result, RollRiders(target, ability, result));
+    }
 
     /// <summary>Goblin Punch (mirror: 0021): ordinary magic damage, except that when
     /// caster and target are the SAME LEVEL the attack gains the caster's level and
