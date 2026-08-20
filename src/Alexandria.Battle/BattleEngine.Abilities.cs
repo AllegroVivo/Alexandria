@@ -2,6 +2,15 @@ namespace Alexandria.Battle;
 
 public sealed partial class BattleEngine
 {
+    /// <summary>Which gem feeds which eidolon (mirror: 0085_SummonScript's switch).
+    /// Madeen has none - it scales with the caster's level instead.</summary>
+    private static readonly Dictionary<String, String> SummonGem = new()
+    {
+        ["Shiva"] = "Opal", ["Ifrit"] = "Topaz", ["Ramuh"] = "Peridot",
+        ["Leviathan"] = "Aquamarine", ["Bahamut"] = "Garnet",
+        ["Ark"] = "Lapis Lazuli", ["Fenrir"] = "Sapphire"
+    };
+    
     /// <summary>Mirror: BattleCalculator.MagicAccuracy + TryMagicHit — the ability's own
     /// rate plus Magic/4 plus the level difference, clamped to 1..100 and halved by Shell.
     /// </summary>
@@ -362,7 +371,20 @@ public sealed partial class BattleEngine
     // AbilityScript.DoubleCastSpecial,
     // AbilityScript.MassSpear,
     // AbilityScript.Jewel,
-    // AbilityScript.Summon,
+
+    /// <summary>Summon (mirror: 0085_SummonScript): ordinary magic damage whose POWER
+    /// is raised by the number of that eidolon's gem in the party's inventory, or by the
+    /// caster's level (for Madeen).</summary>
+    public BattleEvent ExecuteSummon(BattleUnit caster, BattleUnit target, BattleAbility ability, Boolean divided = false)
+    {
+        var bonus = ability.Name == "Madeen"
+            ? caster.Level
+            : SummonGem.TryGetValue(ability.Name, out var gem)
+                ? Gems.GetValueOrDefault(gem)
+                : 0;
+        return ExecuteSpell(caster, target, ability with { Power = ability.Power + bonus }, divided);
+    }
+    
     // AbilityScript.Atomos,
     // AbilityScript.Odin,
 

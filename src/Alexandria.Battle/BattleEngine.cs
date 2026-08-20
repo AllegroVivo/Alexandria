@@ -25,6 +25,9 @@ public sealed partial class BattleEngine
     private Int32 _openingFrames;
 
     private BattleCommandID _currentCommand = BattleCommandID.EnemyAtk;
+    
+    /// <summary>Gems the party is carrying, by item name.</summary>
+    public Dictionary<String, Int32> Gems { get; } = [];
 
     /// <summary>The ability scripts Resolve can run.</summary>
     public static readonly HashSet<AbilityScript> ResolvableScripts =
@@ -108,7 +111,7 @@ public sealed partial class BattleEngine
         // AbilityScript.DoubleCastSpecial,
         // AbilityScript.MassSpear,
         // AbilityScript.Jewel,
-        // AbilityScript.Summon,
+        AbilityScript.Summon,
         // AbilityScript.Atomos,
         // AbilityScript.Odin,
         AbilityScript.Melt,
@@ -420,7 +423,7 @@ public sealed partial class BattleEngine
             // AbilityScript.DoubleCastSpecial,
             // AbilityScript.MassSpear,
             // AbilityScript.Jewel,
-            // AbilityScript.Summon,
+            AbilityScript.Summon => ExecuteSummon(actor, target, ability, divided),
             // AbilityScript.Atomos,
             // AbilityScript.Odin,
             AbilityScript.Melt => ExecuteMelt(actor, target, ability),

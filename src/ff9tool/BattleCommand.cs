@@ -17,7 +17,7 @@ public static class BattleCommand
         AbilityScript.MagicApplyNegativeStatus, AbilityScript.MagicApplyPositiveStatus,
         AbilityScript.MagicGravityDamage, AbilityScript.Revive, AbilityScript.Death,
         AbilityScript.DrainHp, AbilityScript.DrainMp, AbilityScript.Meteorite,
-        AbilityScript.FlareStar, AbilityScript.LvHoly, AbilityScript.Mini
+        AbilityScript.FlareStar, AbilityScript.LvHoly, AbilityScript.Mini, AbilityScript.Summon
     ];
 
     public static void Run(String[] args)
@@ -102,7 +102,11 @@ public static class BattleCommand
                     Loadout.Best(db, p.Name, threat))
                 .Where(s => BattleEngine.ResolvableScripts.Contains(s.Script)).ToList());
 
-        Console.WriteLine($"— {String.Join(" and ", enemies.Select(e => e.Name))} appeared! —");
+        var enemyNames = enemies.Select(e => e.Name).ToList();
+        var roll = enemyNames.Count == 1
+            ? enemyNames[0]
+            : $"{String.Join(", ", enemyNames.Take(enemyNames.Count - 1))} and {enemyNames[^1]}";
+        Console.WriteLine($"— {roll} appeared! —");
 
         var statusTable = db.StatusData.Values
             .Where(s => s.Bit < 32)
@@ -113,6 +117,10 @@ public static class BattleCommand
 
         var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng,
             statusTable: statusTable, host: host, director: director);
+
+        foreach (var gem in new[] { "Opal", "Topaz", "Peridot", "Aquamarine", "Garnet", "Lapis Lazuli", "Sapphire" })
+            engine.Gems[gem] = 20;
+        
         while (engine.TickUntilReady() is { } ready)
         {
             NarrateTicks(engine);
