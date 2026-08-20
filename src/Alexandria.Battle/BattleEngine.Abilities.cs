@@ -1,3 +1,5 @@
+using Alexandria.Rules;
+
 namespace Alexandria.Battle;
 
 public sealed partial class BattleEngine
@@ -78,7 +80,7 @@ public sealed partial class BattleEngine
             attackOverride: attackOverride, ignoreDefense: ignoreDefense);
         var added = result.Outcome is AttackOutcome.Hit or AttackOutcome.Absorbed
                     && ability.StatusMask != 0 && ability.Rate > _rng.Rand16() % 100
-            ? StatusApplication.Apply(target, (BattleStatus)ability.StatusMask, _statusTable)
+            ? StatusApplication.Apply(target, ability.StatusMask, _statusTable)
             : 0;
         PhysicalAttack.Apply(target, result);
         return Finish(caster, target, result, added);
@@ -115,7 +117,7 @@ public sealed partial class BattleEngine
             result = new AttackResult(AttackOutcome.Evaded, 0);
         else
         {
-            landed = StatusApplication.Apply(target, (BattleStatus)ability.StatusMask, _statusTable);
+            landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
             result = new AttackResult(AttackOutcome.Hit, 0);
         }
 
@@ -127,7 +129,7 @@ public sealed partial class BattleEngine
     /// ability registers a miss.</summary>
     public BattleEvent ExecuteCure(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
-        var present = target.Statuses & (BattleStatus)ability.StatusMask;
+        var present = target.Statuses & ability.StatusMask;
         if (present != 0)
             StatusApplication.Remove(target, present);
         return Finish(caster, target,
@@ -143,7 +145,7 @@ public sealed partial class BattleEngine
         
         var restored = Math.Min(target.MaxHP * (target.Spirit + ability.Power) / 100, target.MaxHP);
         target.CurrentHP = restored;
-        StatusApplication.Remove(target, (BattleStatus)ability.StatusMask | BattleStatus.Death);
+        StatusApplication.Remove(target, ability.StatusMask | BattleStatus.Death);
         return Finish(caster, target, new AttackResult(AttackOutcome.Healed, restored));
     }
     
@@ -157,7 +159,7 @@ public sealed partial class BattleEngine
         BattleStatus landed = 0;
         if (outcome == AttackOutcome.Hit)
         {
-            landed = StatusApplication.Apply(target, (BattleStatus)ability.StatusMask, _statusTable);
+            landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
             // IsAlive is HP-based, so the status has to reach the HP model to mean anything
             if ((landed & BattleStatus.Death) != 0)
                 target.CurrentHP = 0;
@@ -410,7 +412,12 @@ public sealed partial class BattleEngine
     // AbilityScript.Eat,
     // AbilityScript.FrogDrop,
     // AbilityScript.Thievery,
-    // AbilityScript.DragonCrest,
+
+    /// <summary>Dragon's Crest (mirror: 0068_DragonCrestScript): damage is the SQUARE of
+    /// how many dragons this save has killed.</summary>
+    public BattleEvent ExecuteDragonCrest(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => FlatDamage(caster, target, _world.Kills[EnemyCategory.Dragon] * _world.Kills[EnemyCategory.Dragon]);
+    
     // AbilityScript.ItemPotion,
     // AbilityScript.ItemEther,
     // AbilityScript.ItemElixir,
@@ -482,7 +489,7 @@ public sealed partial class BattleEngine
     public BattleEvent ExecuteMaelstrom(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
         target.CurrentHP = 1 + _rng.Rand8() % 9;
-        var landed = StatusApplication.Apply(target, (BattleStatus)ability.StatusMask, _statusTable);
+        var landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), landed);
     }
 
@@ -518,14 +525,18 @@ public sealed partial class BattleEngine
     /// misses anyone who is.</summary>
     public BattleEvent ExecuteEntice(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
-        const Int32 female = 2; // CharacterCategory.Female
-        if ((target.Category & female) != 0)
+        if ((target.PlayerCategory & CharacterCategory.Female) != 0)
             return Missed(caster, target);
-        var landed = StatusApplication.Apply(target, (BattleStatus)ability.StatusMask, _statusTable);
+        var landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), landed);
     }
-    
-    // AbilityScript.SimpleAttackGaia,
+
+    /// <summary>Simple Attack, Gaia (mirror: 0098_SimpleAttackGaiaScript): an ordinary
+    /// physical attack that misses anyone born on Terra.</summary>
+    public BattleEvent ExecuteSimpleAttackGaia(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => (target.PlayerCategory & CharacterCategory.Terra) != 0
+            ? Missed(caster, target)
+            : ExecuteAttack(caster, target, ability.Power, ability.Elements);
     
     /// <summary>Flare Star (mirror: 0099_FlareStarScript): damage is the TARGET's own level
     /// times the ability's power.</summary>
@@ -559,11 +570,15 @@ public sealed partial class BattleEngine
     /// applied outright, with no accuracy roll and no evade.</summary>
     public BattleEvent ExecuteBuff(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
-        var landed = StatusApplication.Apply(target, (BattleStatus)ability.StatusMask, _statusTable);
+        var landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), landed);
     }
-    
-    // AbilityScript.TonberryKarma,
+
+    /// <summary>Everyone's Grudge (mirror: 0104_TonberryKarmaScript): damage doubles with
+    /// every Tonberry the save has killed — 1 &lt;&lt; (count − 1), capped at a shift of 20.</summary>
+    public BattleEvent ExecuteTonberryKarma(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => FlatDamage(caster, target,
+            _world.Tonberries == 0 ? 0 : 1 << Math.Min(20, _world.Tonberries - 1));
 
     /// <summary>Grand Cross (mirror: 0105) Sixteen statuses are each rolled independently at 1-in-8
     /// (<code>rand8 &gt;&gt; 5 == 0</code>); LowHP is not inflicted but reduces the target to a
@@ -610,7 +625,7 @@ public sealed partial class BattleEngine
             : MagicRoll(caster, target, ability.Rate, divided);
         BattleStatus landed = 0;
         if (outcome == AttackOutcome.Hit)
-            landed = StatusApplication.Apply(target, (BattleStatus)ability.StatusMask, _statusTable);
+            landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
         return Finish(caster, target, new AttackResult(outcome, 0), landed);
     }
 }

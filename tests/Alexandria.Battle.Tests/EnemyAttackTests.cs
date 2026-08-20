@@ -70,7 +70,7 @@ public class BattleAbilityTests
         // Tongue: script 11, rate 60 → hitRate = clamp(60 + (11>>2) + 14 − 14, 1, 100) = 62
         // dice: target 0, pick 0, accuracy 10 (62 > 10 → hit), evade 50 (MEvade 0 → no)
         var knight = Knight();
-        var wolf = Wolf(new BattleAbility("Tongue", AbilityScript.MagicApplyNegativeStatus, 0, Element.None, 60, (UInt32)BattleStatus.Slow, 0));
+        var wolf = Wolf(new BattleAbility("Tongue", AbilityScript.MagicApplyNegativeStatus, 0, Element.None, 60, BattleStatus.Slow, 0));
         var engine = new BattleEngine([knight], [wolf], EncounterKind.Preemptive,
             new RiggedDice(0, 0, 10, 50));
 

@@ -10,7 +10,7 @@ public sealed record BattleAbility(
     Int32 Power,
     Element Elements,
     Int32 Rate,
-    UInt32 StatusMask,
+    BattleStatus StatusMask,
     Int32 MP,
     Int32 ID = -1,
     Int32 TargetType = 0,

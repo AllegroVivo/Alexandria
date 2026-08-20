@@ -139,7 +139,8 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
             CharacterStat.Row => unit.Row,
             CharacterStat.Column => Int32.TrailingZeroCount(mask), // COLUMN = bi.line_no = the line itself
             CharacterStat.ModelType => unit.ModelType,
-            CharacterStat.Category or CharacterStat.Class => unit.Category, // vanilla: 67 player-side, 68 enemy-side — one field serves both
+            CharacterStat.Category => (Int32)unit.PlayerCategory,
+            CharacterStat.Class => (Int32)unit.Category,
             CharacterStat.StandAnimation => unit.StandAnimation,
             CharacterStat.EnemyID => Int32.TrailingZeroCount(mask) % 4, // ENEMY_ID
             CharacterStat.Strength => unit.Strength,

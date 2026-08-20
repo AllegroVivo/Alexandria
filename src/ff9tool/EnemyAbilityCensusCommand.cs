@@ -32,7 +32,7 @@ public static class EnemyAbilityCensusCommand
             {
                 var script = (AbilityScript)scene.Attacks[n].ScriptID;
                 attacks++;
-                if (BattleEngine.ResolvableScripts.Contains(script))
+                if (BattleEngine.CanResolve(script))
                     resolved++;
                 uses[script] = uses.GetValueOrDefault(script) + 1;
                 examples.TryAdd(script, $"{seqNames.GetValueOrDefault(n, $"attack {n}")} — {name["EVT_BATTLE_".Length..]}");
@@ -46,7 +46,7 @@ public static class EnemyAbilityCensusCommand
             Console.WriteLine(
                 $"  {count,5}× {(Int32)script,3} " +
                 $"{(Enum.IsDefined(script) ? script.ToString() : "(no script — choreography)"),-30} " +
-                $"{(BattleEngine.ResolvableScripts.Contains(script) ? "✓" : " ")}  " +
+                $"{(BattleEngine.CanResolve(script) ? "✓" : " ")}  " +
                 $"e.g. {examples[script]}");
     }
 }

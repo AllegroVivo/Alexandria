@@ -11,7 +11,8 @@ public sealed record RulesDB(
     IReadOnlyDictionary<Int32, BattleAction> Actions,
     IReadOnlyDictionary<Int32, StatusSet> StatusSets,
     IReadOnlyDictionary<String, IReadOnlyList<LearnableAbility>> Learnables,
-    IReadOnlyDictionary<Int32, StatusEntry> StatusData)
+    IReadOnlyDictionary<Int32, StatusEntry> StatusData,
+    IReadOnlyDictionary<Int32, CharacterParameter> Parameters)
 {
     public static RulesDB Load(String dataRoot)
     {
@@ -36,7 +37,8 @@ public sealed record RulesDB(
             BattleAction.Load(Path.Combine(dataRoot, @"Battle\Actions.csv")),
             StatusSet.Load(Path.Combine(dataRoot, @"Battle\StatusSets.csv")),
             learnables,
-            StatusEntry.Load(Path.Combine(dataRoot, @"Battle\StatusData.csv")));
+            StatusEntry.Load(Path.Combine(dataRoot, @"Battle\StatusData.csv")),
+            CharacterParameter.Load(Path.Combine(dataRoot, @"Characters\CharacterParameters.csv")));
     }
 }
 

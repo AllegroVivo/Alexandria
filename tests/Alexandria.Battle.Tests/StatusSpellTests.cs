@@ -23,7 +23,7 @@ public class StatusSpellTests
         var engine = new BattleEngine([vivi], [wolf], EncounterKind.Preemptive, new RiggedDice(54, 50));
 
         var e = engine.ExecuteAbility(vivi, wolf, new BattleAbility(
-            "Sleep", AbilityScript.MagicApplyNegativeStatus, 0, Element.None, 50, (UInt32)BattleStatus.Sleep, 10));
+            "Sleep", AbilityScript.MagicApplyNegativeStatus, 0, Element.None, 50, BattleStatus.Sleep, 10));
         
         Assert.Equal(AttackOutcome.Hit, e.Result.Outcome);
         Assert.True(wolf.Has(BattleStatus.Sleep));
@@ -38,7 +38,7 @@ public class StatusSpellTests
         var engine = new BattleEngine([vivi], [wolf], EncounterKind.Preemptive, new RiggedDice(60));
 
         var e = engine.ExecuteAbility(vivi, wolf, new BattleAbility(
-            "Sleep", AbilityScript.MagicApplyNegativeStatus, 0, Element.None, 50, (UInt32)BattleStatus.Sleep, 10));
+            "Sleep", AbilityScript.MagicApplyNegativeStatus, 0, Element.None, 50, BattleStatus.Sleep, 10));
         
         Assert.Equal(AttackOutcome.Miss, e.Result.Outcome);
         Assert.False(wolf.Has(BattleStatus.Sleep));

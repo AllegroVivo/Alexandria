@@ -63,7 +63,7 @@ public static class BattleCommand
                     return new BattleAbility(
                         attackNames.GetValueOrDefault(n, $"Attack {n}"),
                         (AbilityScript)a.ScriptID, a.Power, (Element)a.Elements, a.Rate,
-                        db.StatusSets[a.AddStatusNo].StatusMask, a.MP, n, a.Target,
+                        (BattleStatus)db.StatusSets[a.AddStatusNo].StatusMask, a.MP, n, a.Target,
                         SetsStandAnimation: animSequences.GetValueOrDefault(n));
                 }));
                 return unit;
@@ -77,7 +77,15 @@ public static class BattleCommand
         var partyNames = args.Length > 2 ? args[2].Split(',') : ["Zidane", "Garnet", "Steiner", "Vivi"];
         var party = partyNames.Select(n => BuildCharacter(db, n, level, threat)).ToList();
         var host = new EngineHost(party, enemies, rng) { Pattern = pattern };
-        var state = new EbState();
+        var world = new WorldState
+        {
+            Tonberries = 12,
+            Kills =
+            {
+                [EnemyCategory.Dragon] = 40
+            }
+        };
+        var state = world.Scripts;
         EbVM? director;
         using (var eb = new BinaryReader(File.OpenRead(
                    Path.Combine(sceneDir, Path.GetFileName(sceneDir) + ".eb"))))
@@ -105,7 +113,7 @@ public static class BattleCommand
             p => Spellbook.For(db, p.Name,
                     APEarned.LearnedActives(db.Learnables.GetValueOrDefault(p.Name, []), p.Level),
                     Loadout.Best(db, p.Name, threat))
-                .Where(s => BattleEngine.ResolvableScripts.Contains(s.Script)).ToList());
+                .Where(s => BattleEngine.CanResolve(s.Script)).ToList());
 
         var enemyNames = enemies.Select(e => e.Name).ToList();
         var roll = enemyNames.Count == 1
@@ -121,7 +129,7 @@ public static class BattleCommand
                     (BattleStatus)s.ClearOnApply, (BattleStatus)s.ImmunityProvided));
 
         var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng,
-            statusTable: statusTable, host: host, director: director);
+            statusTable: statusTable, host: host, director: director, world: world);
 
         foreach (var gem in new[] { "Opal", "Topaz", "Peridot", "Aquamarine", "Garnet", "Lapis Lazuli", "Sapphire" })
             engine.Gems[gem] = 20;
@@ -187,7 +195,8 @@ public static class BattleCommand
             AttackPower = kit.WeaponPower, WeaponElement = (Element)kit.WeaponElement,
             BonusElements = (Element)kit.BonusElements, GuardElements = (Element)kit.GuardElements,
             AbsorbElements = (Element)kit.AbsorbElements, HalfElements = (Element)kit.HalfElements,
-            WeakElements = (Element)kit.WeakElements
+            WeakElements = (Element)kit.WeakElements,
+            PlayerCategory = db.Parameters[baseStats.ID].Category
         };
     }
 
@@ -262,7 +271,7 @@ public static class BattleCommand
                     : PromptEnemy(engine, "On which target? ");
                 return engine.ExecuteAbility(actor, target, new BattleAbility(
                     spell.Name, spell.Script, spell.Power, (Element)spell.Elements, spell.Rate,
-                    db.StatusSets[spell.StatusIndex].StatusMask, spell.MP, -1, spell.TargetType,
+                    (BattleStatus)db.StatusSets[spell.StatusIndex].StatusMask, spell.MP, -1, spell.TargetType,
                     spell.ForDead));
             }
         }

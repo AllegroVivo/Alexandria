@@ -49,7 +49,7 @@ public class ElementTests
         var engine = new BattleEngine([vivi], [wolf], EncounterKind.Preemptive, new RiggedDice(0));
 
         var e = engine.ExecuteAbility(vivi, wolf, new BattleAbility(
-            "Fire", AbilityScript.MagicAttack, 42, Element.Fire, 20, (UInt32)BattleStatus.Poison, 18));
+            "Fire", AbilityScript.MagicAttack, 42, Element.Fire, 20, BattleStatus.Poison, 18));
         
         Assert.Equal(AttackOutcome.Guarded, e.Result.Outcome);
         Assert.Equal(899, wolf.CurrentHP);

@@ -1,4 +1,5 @@
 using Alexandria.Formats.Scenes.BattleScene;
+using Alexandria.Rules;
 
 namespace Alexandria.Battle;
 
@@ -55,7 +56,8 @@ public sealed class BattleUnit
     
     public Int32 StandAnimation { get; set; }
     public Int32 Row { get; set; }
-    public Int32 Category { get; set; }
+    public EnemyCategory Category { get; set; }
+    public CharacterCategory PlayerCategory { get; set; }
     public Int32 ModelType { get; set; }
     public Int32 ModelID { get; set; }
 
@@ -90,7 +92,7 @@ public sealed class BattleUnit
         HalfElements = (Element)m.HalfElement,
         WeakElements = (Element)m.WeakElement,
         Row = 2,
-        Category = m.Category,
+        Category = (EnemyCategory)m.Category,
         ImmuneStatuses = (BattleStatus)m.ResistStatus,
         DiesFighting = (m.Flags & 1) != 0,
         ModelID = m.Geo,

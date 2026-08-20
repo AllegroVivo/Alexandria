@@ -22,7 +22,7 @@ public static class PlayerAbilityCensusCommand
                 continue;
             pairs++;
             distinct.Add(action.ID);
-            if (BattleEngine.ResolvableScripts.Contains(action.Script))
+            if (BattleEngine.CanResolve(action.Script))
                 resolved++;
             uses[action.Script] = uses.GetValueOrDefault(action.Script) + 1;
             examples.TryAdd(action.Script, $"{action.Name} — {character}");
@@ -37,7 +37,7 @@ public static class PlayerAbilityCensusCommand
             var label = Enum.IsDefined(script) ? script.ToString() : "(no script)";
             Console.WriteLine(
                 $"  {count,4}× {(Int32)script,3} {label,-30} " +
-                $"{(BattleEngine.ResolvableScripts.Contains(script) ? "✓" : " ")}  " +
+                $"{(BattleEngine.CanResolve(script) ? "✓" : " ")}  " +
                 $"e.g. {examples[script]}");
         }
     }

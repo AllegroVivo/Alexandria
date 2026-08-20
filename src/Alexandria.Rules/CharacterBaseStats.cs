@@ -2,7 +2,7 @@ namespace Alexandria.Rules;
 
 public sealed record CharacterBaseStats(
     String Name,
-    Int32 Id,
+    Int32 ID,
     Byte Dexterity,
     Byte Strength,
     Byte Magic,

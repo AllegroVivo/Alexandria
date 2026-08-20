@@ -87,7 +87,7 @@ public class BattleEngineTests
 
             var dispatched = engine.ExecuteAbility(hero, wolf, probe).Result.Outcome
                              != AttackOutcome.NoEffect;
-            var declared = BattleEngine.ResolvableScripts.Contains(script);
+            var declared = BattleEngine.CanResolve(script);
 
             if (dispatched != declared)
                 mismatches.Add($"{script} ({(Int32)script}): dispatched={dispatched}, declared={declared}");
