@@ -1,5 +1,3 @@
-using System.ComponentModel;
-using System.Diagnostics;
 using Alexandria.Formats;
 using Alexandria.Formats.Scripts;
 

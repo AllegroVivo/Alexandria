@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-
 namespace Alexandria.Battle;
 
 public enum CardTarget

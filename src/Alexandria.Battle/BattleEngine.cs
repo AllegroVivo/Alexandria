@@ -1,6 +1,4 @@
 using System.Collections.Frozen;
-using System.Diagnostics.Metrics;
-using System.Net.Security;
 using Alexandria.Formats.Scripts;
 using Alexandria.Rules;
 
@@ -18,12 +16,12 @@ public sealed partial class BattleEngine
     private readonly Int32 _coefficient;
     private readonly EngineHost? _host;
     private readonly WorldState _world;
+    private readonly EbVM? _director;
+    private readonly IReadOnlyDictionary<BattleStatus, StatusTiming> _statusTable;
 
     private const Int32 OpeningBudget = 600; // 40s
 
-    private IReadOnlyDictionary<BattleStatus, StatusTiming> _statusTable;
     private Boolean _reacting;
-    private readonly EbVM? _director;
     private Int32 _openingFrames;
 
     private BattleCommandID _currentCommand = BattleCommandID.EnemyAtk;
@@ -122,10 +120,11 @@ public sealed partial class BattleEngine
     /// roster entries.</summary>
     public BattleEvent ExecuteEnemyTurn(BattleUnit enemy)
     {
+        var brain = enemy.Brain as ScriptedBrain;
         if (enemy.Brain is not null
             && enemy.Brain.Decide(enemy, Players, _rng) is var (attackId, chosen)
             && enemy.Abilities.FirstOrDefault(a => a.ID == attackId) is { } scripted)
-            return Resolve(enemy, chosen, scripted, (enemy.Brain as ScriptedBrain)?.LastTargetMask ?? 0);
+            return Resolve(enemy, chosen, scripted, brain?.LastTargetMask ?? 0);
 
         var living = Players.Where(p => p.IsAlive).ToList();
         var target = living[_rng.Rand16() % living.Count];
@@ -133,8 +132,7 @@ public sealed partial class BattleEngine
         var usable = enemy.Abilities.Where(a => a.MP <= enemy.CurrentMP).ToList();
         if (usable.Count == 0)
             return ExecuteAttack(enemy, target);
-        return Resolve(enemy, target, usable[_rng.Rand16() % usable.Count],
-            (enemy.Brain as ScriptedBrain)?.LastTargetMask ?? 0);
+        return Resolve(enemy, target, usable[_rng.Rand16() % usable.Count], brain?.LastTargetMask ?? 0);
     }
     
     /// <summary>Mirror: SBattleCalculator.CalcResult's tail — every resolved

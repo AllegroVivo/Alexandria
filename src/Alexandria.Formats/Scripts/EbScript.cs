@@ -1,5 +1,3 @@
-using System.Drawing;
-
 namespace Alexandria.Formats.Scripts;
 
 /// <summary>

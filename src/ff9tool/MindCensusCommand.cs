@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Alexandria.Battle;
 using Alexandria.Formats;
 using Alexandria.Formats.Scenes.BattleScene;
