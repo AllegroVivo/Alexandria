@@ -79,10 +79,10 @@ public static class BattleCommand
         var world = new WorldState
         {
             Tonberries = 12,
-            Kills =
-            {
-                [EnemyCategory.Dragon] = 40
-            }
+            Frogs = 45,
+            Thefts = 180,
+            Gil = 250_000,
+            Kills = { [EnemyCategory.Dragon] = 40 }
         };
         var state = world.Scripts;
         EbVM? director;

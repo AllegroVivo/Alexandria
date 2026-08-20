@@ -309,7 +309,21 @@ public sealed partial class BattleEngine
     // AbilityScript.MentalBreak,
     // AbilityScript.MagicBreak,
     // AbilityScript.Chakra,
-    // AbilityScript.SpareChange,
+
+    /// <summary>Spare Change (mirror: 0038_SpareChangeScript): Amarant throws
+    /// `power x level` gil and the damage is that throw squared, tenthed, scaled by
+    /// Spirit, over what the party held BEFORE paying.</summary>
+    public BattleEvent ExecuteSpareChange(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var purse = _world.Gil;
+        var thrown = ability.Power * caster.Level;
+        if (purse == 0 || thrown > purse)
+            return Missed(caster, target);
+
+        _world.Gil -= thrown;
+        return FlatDamage(caster, target,
+            (Int32)((Int64)thrown * thrown / 10 * caster.Spirit / purse));
+    }
 
     /// <summary>Lancer (mirror: 0039_LancerScript): a weapon-powered physical hit with NO
     /// accuracy roll, which additionally drains MP equal to a SIXTEENTH of the HP damage
@@ -400,8 +414,16 @@ public sealed partial class BattleEngine
     // AbilityScript.ItemSoft,
     // AbilityScript.MagicSwordAttack,
     // AbilityScript.Eat,
-    // AbilityScript.FrogDrop,
-    // AbilityScript.Thievery,
+
+    /// <summary>Frog Drop (mirror: 0066_FrogDropScript): damage is every frog Quina has
+    /// ever caught times the caster's level.</summary>
+    public BattleEvent ExecuteFrogDrop(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => FlatDamage(caster, target, _world.Frogs == 0 ? 1 : _world.Frogs * caster.Level);
+
+    /// <summary>Thievery (mirror: 0067_ThieveryScript): the save's successful steal count
+    /// times the caster's Dexterity, halved.</summary>
+    public BattleEvent ExecuteThievery(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => FlatDamage(caster, target, _world.Thefts * caster.Speed / 2);
 
     /// <summary>Dragon's Crest (mirror: 0068_DragonCrestScript): damage is the SQUARE of
     /// how many dragons this save has killed.</summary>
