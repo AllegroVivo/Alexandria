@@ -318,9 +318,34 @@ public sealed partial class BattleEngine
     // AbilityScript.MagicBreak,
     // AbilityScript.Chakra,
     // AbilityScript.SpareChange,
-    // AbilityScript.Lancer,
-    // AbilityScript.DragonBreath,
-    // AbilityScript.WhiteDraw,
+
+    /// <summary>Lancer (mirror: 0039_LancerScript): a weapon-powered physical hit with NO
+    /// accuracy roll, which additionally drains MP equal to a SIXTEENTH of the HP damage
+    /// dealt.</summary>
+    public BattleEvent ExecuteLancer(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var ev = ExecuteAttack(caster, target, ability.Power > 0 ? ability.Power : null, 
+            ability.Elements, precise: true);
+        if (ev.Result.Damage > 0)
+            target.CurrentMP = Math.Max(0, target.CurrentMP - (ev.Result.Damage >> 4));
+        return ev;
+    }
+
+    /// <summary>Dragon Breath (mirror: 0040_DragonBreathScript): damage equal to the
+    /// target's MISSING HP, dealt to every enemy.</summary>
+    public BattleEvent ExecuteDragonBreath(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => FlatDamage(caster, target, target.MaxHP - target.CurrentHP);
+
+    /// <summary>White Draw (mirror: 0041_WhiteDrawScript): restores MP to the WHOLE PARTY
+    /// — a random amount up to twice the target's level, the same figure for everyone.</summary>
+    public BattleEvent ExecuteWhiteDraw(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var restored = target.Level > 0 ? _rng.Rand16() % (target.Level * 2) : 0;
+        foreach (var ally in Players.Where(p => p.IsAlive))
+            ally.CurrentMP = Math.Min(ally.MaxMP, ally.CurrentMP + restored);
+        return Finish(caster, target, new AttackResult(AttackOutcome.Healed, restored));
+    }
+    
     // AbilityScript.Throw,    
 
     /// <summary>Might (mirror: 0043): raises the target's Strength by Strength ÷ power,
@@ -337,7 +362,34 @@ public sealed partial class BattleEngine
     // AbilityScript.SoulBlade,
     // AbilityScript.Spear,
     // AbilityScript.Phoenix,
-    // AbilityScript.SixDragons,
+
+    /// <summary>Six Dragons (mirror: 0050_SixDragonsScript): one roll out of a hundred
+    /// picks among six outcomes — 10% full HP and MP, 20% full HP, 20% full MP, 15% HP to
+    /// 1, 15% MP to 1, and the remaining 20% reduces both to 1.</summary>
+    public BattleEvent ExecuteSixDragons(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var roll = _rng.Rand16() % 100;
+        if (roll < 10)
+        {
+            target.CurrentHP = target.MaxHP;
+            target.CurrentMP = target.MaxMP;
+        }
+        else if (roll < 30)
+            target.CurrentHP = target.MaxHP;
+        else if (roll < 50)
+            target.CurrentMP = target.MaxMP;
+        else if (roll < 65)
+            target.CurrentHP = 1;
+        else if (roll < 80)
+            target.CurrentMP = 1;
+        else
+        {
+            target.CurrentHP = 1;
+            target.CurrentMP = 1;
+        }
+        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0));
+    }
+    
     // AbilityScript.Curse,
     // AbilityScript.AngelSnack,
     // AbilityScript.LuckySeven,

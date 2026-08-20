@@ -34,6 +34,10 @@ public static class BattleCommand
             .Select(f => Path.GetFileNameWithoutExtension(f))
             .ToDictionary(s => Int32.Parse(s[..2]), s => s[3..]);
 
+        var animSequences = Directory.EnumerateFiles(sceneDir, "*.seq")
+            .ToDictionary(f => Int32.Parse(Path.GetFileNameWithoutExtension(f)[..2]),
+                f => AnimationSequenceScript.Read(f).StandAnimation);
+
         var pattern = args.Length > 1 ? Int32.Parse(args[1]) : 0;
         var formation = scene.Formations[pattern];
         var placements = formation.Monsters.Take(Math.Min(formation.MonsterCount, (Byte)4)).ToList();
@@ -59,7 +63,8 @@ public static class BattleCommand
                     return new BattleAbility(
                         attackNames.GetValueOrDefault(n, $"Attack {n}"),
                         (AbilityScript)a.ScriptID, a.Power, (Element)a.Elements, a.Rate,
-                        db.StatusSets[a.AddStatusNo].StatusMask, a.MP, n, a.Target);
+                        db.StatusSets[a.AddStatusNo].StatusMask, a.MP, n, a.Target,
+                        SetsStandAnimation: animSequences.GetValueOrDefault(n));
                 }));
                 return unit;
             })

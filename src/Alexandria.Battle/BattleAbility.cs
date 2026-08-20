@@ -14,5 +14,6 @@ public sealed record BattleAbility(
     Int32 MP,
     Int32 ID = -1,
     Int32 TargetType = 0,
-    Boolean ForDead = false);
+    Boolean ForDead = false,
+    Int32? SetsStandAnimation = null);
     

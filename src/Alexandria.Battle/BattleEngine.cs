@@ -71,9 +71,9 @@ public sealed partial class BattleEngine
         // AbilityScript.MagicBreak,
         // AbilityScript.Chakra,
         // AbilityScript.SpareChange,
-        // AbilityScript.Lancer,
-        // AbilityScript.DragonBreath,
-        // AbilityScript.WhiteDraw,
+        AbilityScript.Lancer,
+        AbilityScript.DragonBreath,
+        AbilityScript.WhiteDraw,
         // AbilityScript.Throw,
         AbilityScript.Might,
         // AbilityScript.Focus,
@@ -81,7 +81,7 @@ public sealed partial class BattleEngine
         // AbilityScript.SoulBlade,
         // AbilityScript.Spear,
         // AbilityScript.Phoenix,
-        // AbilityScript.SixDragons,
+        AbilityScript.SixDragons,
         // AbilityScript.Curse,
         // AbilityScript.AngelSnack,
         // AbilityScript.LuckySeven,
@@ -325,6 +325,9 @@ public sealed partial class BattleEngine
 
         actor.CurrentMP -= ability.MP;
 
+        if (ability.SetsStandAnimation is { } pose)
+            actor.StandAnimation = pose;
+
         _currentCommand = IsEnemy(actor) ? BattleCommandID.EnemyAtk
             : ability.Script == AbilityScript.EnemyPhysicalAttack ? BattleCommandID.Attack
             : BattleCommandID.BlackMagic;
@@ -383,9 +386,9 @@ public sealed partial class BattleEngine
             // AbilityScript.MagicBreak,
             // AbilityScript.Chakra,
             // AbilityScript.SpareChange,
-            // AbilityScript.Lancer,
-            // AbilityScript.DragonBreath,
-            // AbilityScript.WhiteDraw,
+            AbilityScript.Lancer => ExecuteLancer(actor, target, ability),
+            AbilityScript.DragonBreath => ExecuteDragonBreath(actor, target, ability),
+            AbilityScript.WhiteDraw => ExecuteWhiteDraw(actor, target, ability),
             // AbilityScript.Throw,
             AbilityScript.Might => ExecuteMight(actor, target, ability),
             // AbilityScript.Focus,
@@ -393,7 +396,7 @@ public sealed partial class BattleEngine
             // AbilityScript.SoulBlade,
             // AbilityScript.Spear,
             // AbilityScript.Phoenix,
-            // AbilityScript.SixDragons,
+            AbilityScript.SixDragons => ExecuteSixDragons(actor, target, ability),
             // AbilityScript.Curse,
             // AbilityScript.AngelSnack,
             // AbilityScript.LuckySeven,
