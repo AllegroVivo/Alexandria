@@ -132,6 +132,10 @@ public static class BattleCommand
         while (engine.TickUntilReady() is { } ready)
         {
             NarrateTicks(engine);
+
+            var tranced = engine.Players.Concat(engine.Enemies)
+                .Where(u => u.Has(BattleStatus.Trance))
+                .ToHashSet();
             
             if (engine.IsEnemy(ready))
             {
@@ -156,6 +160,8 @@ public static class BattleCommand
             foreach (var hit in engine.PendingMultiHits)
                 Narrate(hit);
             engine.PendingMultiHits.Clear();
+
+            NarrateTrance(engine, tranced);
         }
         NarrateTicks(engine);
 
@@ -191,7 +197,8 @@ public static class BattleCommand
             BonusElements = (Element)kit.BonusElements, GuardElements = (Element)kit.GuardElements,
             AbsorbElements = (Element)kit.AbsorbElements, HalfElements = (Element)kit.HalfElements,
             WeakElements = (Element)kit.WeakElements,
-            PlayerCategory = db.Parameters[baseStats.ID].Category
+            PlayerCategory = db.Parameters[baseStats.ID].Category,
+            HasTrance = (db.Parameters[baseStats.ID].Category & CharacterCategory.SubPC) == 0
         };
     }
 
@@ -240,6 +247,18 @@ public static class BattleCommand
             });
         }
         engine.PendingStatusEvents.Clear();
+    }
+
+    private static void NarrateTrance(BattleEngine engine, HashSet<BattleUnit> before)
+    {
+        foreach (var unit in engine.Players.Concat(engine.Enemies))
+        {
+            if (unit.Has(BattleStatus.Trance) == before.Contains(unit))
+                continue;
+            Console.WriteLine(unit.Has(BattleStatus.Trance)
+                ? $"  ✦ {unit.Name} enters Trance!"
+                : $"  {unit.Name}'s Trance fades.");
+        }
     }
 
     private static BattleEvent TakePlayerTurn(RulesDB db, BattleEngine engine,

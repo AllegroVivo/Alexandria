@@ -69,7 +69,8 @@ public sealed partial class BattleEngine
     {
         _currentCommand = IsEnemy(attacker) ? BattleCommandID.EnemyAtk : BattleCommandID.Attack;
         var result = PhysicalAttack.Execute(attacker, target, power ?? attacker.AttackPower, _rng,
-            enemyStyle: IsEnemy(attacker), element: element ?? attacker.WeaponElement, precise: precise);
+            enemyStyle: IsEnemy(attacker), element: element ?? attacker.WeaponElement, precise: precise,
+            damageModifiers: TranceBonus(attacker));
         PhysicalAttack.Apply(target, result);
         if (result.Damage > 0 && target.Has(BattleStatus.Sleep))
             StatusApplication.Remove(target, BattleStatus.Sleep);
@@ -82,7 +83,8 @@ public sealed partial class BattleEngine
     {
         var result = MagicAttack.Execute(caster, target, ability.Power,
             _rng, multiTarget: divided, element: ability.Elements,
-            attackOverride: attackOverride, ignoreDefense: ignoreDefense);
+            attackOverride: attackOverride, ignoreDefense: ignoreDefense,
+            damageModifiers: TranceBonus(caster));
         var added = result.Outcome is AttackOutcome.Hit or AttackOutcome.Absorbed
                     && ability.StatusMask != 0 && ability.Rate > _rng.Rand16() % 100
             ? StatusApplication.Apply(target, ability.StatusMask, _statusTable)

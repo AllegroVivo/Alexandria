@@ -113,12 +113,23 @@ public sealed partial class BattleEngine
 
     /// <summary>A party member casting. Deliberately the same dispatch the enemies use.</summary>
     public BattleEvent ExecuteAbility(BattleUnit actor, BattleUnit target, BattleAbility ability)
-        => Resolve(actor, target, ability);
+    {
+        var ev = Resolve(actor, target, ability);
+        DrainTrance(actor);
+        return ev;
+    }
 
     /// <summary>Enemy turn. Target: uniform among living players (mirror: the B_SELECT
     /// operator, EventEngine.OperatorSelect). Attack choice: uniform among affordable
     /// roster entries.</summary>
     public BattleEvent ExecuteEnemyTurn(BattleUnit enemy)
+    {
+        var ev = ChooseAndResolve(enemy);
+        DrainTrance(enemy);
+        return ev;
+    }
+    
+    private BattleEvent ChooseAndResolve(BattleUnit enemy)
     {
         var brain = enemy.Brain as ScriptedBrain;
         if (enemy.Brain is not null
@@ -133,6 +144,14 @@ public sealed partial class BattleEngine
         if (usable.Count == 0)
             return ExecuteAttack(enemy, target);
         return Resolve(enemy, target, usable[_rng.Rand16() % usable.Count], brain?.LastTargetMask ?? 0);
+    }
+
+    /// <summary>A basic attack as a COMMAND Verbs call ExecuteAttack directly instead.</summary>
+    public BattleEvent ExecuteBasicAttack(BattleUnit actor, BattleUnit target)
+    {
+        var ev = ExecuteAttack(actor, target);
+        DrainTrance(actor);
+        return ev;
     }
     
     /// <summary>Mirror: SBattleCalculator.CalcResult's tail — every resolved
@@ -169,11 +188,51 @@ public sealed partial class BattleEngine
         }
     }
 
+    /// <summary>Mirror: BattleCaster.EnemyTranceBonusAttack - an ENEMY acting in Trance
+    /// deals +50%.</summary>
+    private Int32 TranceBonus(BattleUnit actor) => IsEnemy(actor) && actor.Has(BattleStatus.Trance) ? 1 : 0;
+
+    /// <summary>Mirror: SBattleCalculator.CheckDamageReaction - being acted on by the
+    /// OTHER side raises the gauge by `rand16 % Spirit`, and topping it out is what puts
+    /// the unit into Trance.</summary>
+    private void FillTrance(BattleUnit caster, BattleUnit target)
+    {
+        if (IsEnemy(caster) == IsEnemy(target) || !target.HasTrance || !target.IsAlive)
+            return;
+        if (target.Has(BattleStatus.CannotTrance) || target.Spirit <= 0)
+            return;
+
+        var gain = _rng.Rand16() % target.Spirit;
+        if (target.TranceGauge + gain < BattleUnit.TranceMax)
+        {
+            target.TranceGauge += gain;
+            return;
+        }
+        target.TranceGauge = BattleUnit.TranceMax;
+        StatusApplication.Apply(target, BattleStatus.Trance, _statusTable);
+    }
+
+    /// <summary>Mirror: btl_cmd.IsNeedToDecreaseTrance plus the drain block (:1293) - every
+    /// COMMAND a tranced unit completes costs `(300 - level) / Spirit * 10`, and when the
+    /// gauge cannot cover it the Trance ends.</summary>
+    private void DrainTrance(BattleUnit actor)
+    {
+        if (!actor.Has(BattleStatus.Trance) || (actor.PermanentStatuses & BattleStatus.Trance) != 0)
+            return;
+
+        var cost = (300 - actor.Level) / Math.Max(1, actor.Spirit) * 10;
+        if (actor.TranceGauge > cost)
+            actor.TranceGauge -= cost;
+        else
+            StatusApplication.Remove(actor, BattleStatus.Trance);
+    }
+
     /// <summary>The tail every resolved action shares (mirror: SBattleCalculator.CalcResult):
     /// the actor's gauge resets, then the target's script gets its chance to react.</summary>
     private BattleEvent Finish(BattleUnit caster, BattleUnit target, AttackResult result, BattleStatus landed = 0)
     {
         ATBClock.ResetAfterAction(caster);
+        FillTrance(caster, target);
         Provoke(caster, target);
         return new BattleEvent(caster, target, result, landed);
     }
