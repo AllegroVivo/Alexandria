@@ -1,10 +1,11 @@
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace Alexandria.Rules.Tests;
 
 public class EquipmentKitTests
 {
-    private static readonly RulesDB Db = RulesDB.Load(@"C:\Dev\Memoria\FF9Data\Data");
+    private static readonly RulesDB Db = RulesDB.Load(FF9Data.Data);
 
     private static EquipmentKit KitFor(String name)
         => EquipmentKit.Resolve(Db.DefaultEquipment.First(e => e.Name == name),

@@ -48,6 +48,11 @@ public sealed partial class BattleEngine
         target.CurrentHP = Math.Max(0, target.CurrentHP - damage);
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, damage));
     }
+
+    /// <summary>Statuses that land 100% of the time.</summary>
+    private BattleEvent LandStatuses(BattleUnit caster, BattleUnit target, BattleStatus statuses)
+        => Finish(caster, target, new AttackResult(
+            AttackOutcome.Hit, 0), StatusApplication.Apply(target, statuses, _statusTable));
     
     // AbilityScript.BaseWeapon,
     // AbilityScript.SimpleWeapon,
@@ -103,25 +108,10 @@ public sealed partial class BattleEngine
     /// multi-targeting halve it; no damage - on a hit the statuses simply land.</summary>
     public BattleEvent ExecuteStatusSpell(BattleUnit caster, BattleUnit target, BattleAbility ability, Boolean divided = false)
     {
-        var hitRate = Math.Clamp(ability.Rate + (caster.Magic >> 2) + caster.Level - target.Level, 1, 100);
-        if (target.Has(BattleStatus.Shell))
-            hitRate /= 2;
-        if (divided)
-            hitRate /= 2;
-
-        AttackResult result;
-        BattleStatus landed = 0;
-        if (hitRate <= _rng.Rand16() % 100)
-            result = new AttackResult(AttackOutcome.Miss, 0);
-        else if (target.MagicalEvade > _rng.Rand16() % 100)
-            result = new AttackResult(AttackOutcome.Evaded, 0);
-        else
-        {
-            landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
-            result = new AttackResult(AttackOutcome.Hit, 0);
-        }
-
-        return Finish(caster, target, result, landed);
+        var outcome = MagicRoll(caster, target, ability.Rate, divided);
+        return outcome == AttackOutcome.Hit
+            ? LandStatuses(caster, target, ability.StatusMask)
+            : Finish(caster, target, new AttackResult(outcome, 0));
     }
     
     /// <summary>Status cure (mirror: 0012_MagicCureStatusScript → TryRemoveAbilityStatuses):
@@ -489,8 +479,7 @@ public sealed partial class BattleEngine
     public BattleEvent ExecuteMaelstrom(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
         target.CurrentHP = 1 + _rng.Rand8() % 9;
-        var landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
-        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), landed);
+        return LandStatuses(caster, target, ability.StatusMask);
     }
 
     /// <summary>Absorb Magic / Absorb Strength (mirror: 0094 / 0095): halve the stat on the
@@ -517,19 +506,15 @@ public sealed partial class BattleEngine
         if (!target.HasTrance)
             return Missed(caster, target);
         target.TranceGauge = BattleUnit.TranceMax;
-        var landed = StatusApplication.Apply(target, BattleStatus.Trance, _statusTable);
-        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), landed);
+        return LandStatuses(caster, target, BattleStatus.Trance);
     }
 
     /// <summary>Entice (mirror: 0097): lands its statuses on anyone who is not female, and
     /// misses anyone who is.</summary>
     public BattleEvent ExecuteEntice(BattleUnit caster, BattleUnit target, BattleAbility ability)
-    {
-        if ((target.PlayerCategory & CharacterCategory.Female) != 0)
-            return Missed(caster, target);
-        var landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
-        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), landed);
-    }
+        => (target.PlayerCategory & CharacterCategory.Female) != 0
+            ? Missed(caster, target)
+            : LandStatuses(caster, target, ability.StatusMask);
 
     /// <summary>Simple Attack, Gaia (mirror: 0098_SimpleAttackGaiaScript): an ordinary
     /// physical attack that misses anyone born on Terra.</summary>
@@ -568,11 +553,8 @@ public sealed partial class BattleEngine
     
     /// <summary>Positive statuses (mirror: 0103 → TryAlterCommandStatuses): buffs are
     /// applied outright, with no accuracy roll and no evade.</summary>
-    public BattleEvent ExecuteBuff(BattleUnit caster, BattleUnit target, BattleAbility ability)
-    {
-        var landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
-        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), landed);
-    }
+    public BattleEvent ExecuteBuff(BattleUnit caster, BattleUnit target, BattleAbility ability) 
+        => LandStatuses(caster, target, ability.StatusMask);
 
     /// <summary>Everyone's Grudge (mirror: 0104_TonberryKarmaScript): damage doubles with
     /// every Tonberry the save has killed — 1 &lt;&lt; (count − 1), capped at a shift of 20.</summary>
@@ -623,10 +605,9 @@ public sealed partial class BattleEngine
         var outcome = target.Has(BattleStatus.Mini)
             ? AttackOutcome.Hit
             : MagicRoll(caster, target, ability.Rate, divided);
-        BattleStatus landed = 0;
-        if (outcome == AttackOutcome.Hit)
-            landed = StatusApplication.Apply(target, ability.StatusMask, _statusTable);
-        return Finish(caster, target, new AttackResult(outcome, 0), landed);
+        return outcome == AttackOutcome.Hit
+            ? LandStatuses(caster, target, ability.StatusMask)
+            : Finish(caster, target, new AttackResult(outcome, 0));
     }
 }
 

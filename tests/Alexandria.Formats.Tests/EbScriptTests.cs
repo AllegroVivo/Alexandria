@@ -4,20 +4,17 @@ namespace Alexandria.Formats.Tests;
 
 public class EbScriptTests
 {
-    private const String SceneRoot = @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene";
-
     public static TheoryData<String> AllScenes()
     {
         var data = new TheoryData<String>();
-        foreach (var dir in Directory.EnumerateDirectories(SceneRoot))
+        foreach (var dir in Directory.EnumerateDirectories(FF9Data.Scenes))
             data.Add(Path.GetFileName(dir));
         return data;
     }
 
     private static EbScript Load(String sceneName)
     {
-        using var reader = new BinaryReader(
-            File.OpenRead(Path.Combine(SceneRoot, sceneName, sceneName + ".eb")));
+        using var reader = new BinaryReader(File.OpenRead(FF9Data.SceneScript(sceneName)));
         return EbScript.Read(reader);
     }
 

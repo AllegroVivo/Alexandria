@@ -1,4 +1,5 @@
 using Alexandria.Battle;
+using Alexandria.Formats;
 using Alexandria.Formats.Memoria;
 using Alexandria.Formats.Scenes.BattleScene;
 using Alexandria.Rules;
@@ -8,15 +9,13 @@ namespace ff9tool;
 /// <summary>Which ability scripts the game's rosters actually need.</summary>
 public static class EnemyAbilityCensusCommand
 {
-    private const String SceneRoot = @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene";
-
     public static void Run()
     {
         var uses = new Dictionary<AbilityScript, Int32>();
         var examples = new Dictionary<AbilityScript, String>();
         Int32 scenes = 0, attacks = 0, resolved = 0;
 
-        foreach (var dir in Directory.EnumerateDirectories(SceneRoot))
+        foreach (var dir in Directory.EnumerateDirectories(FF9Data.Scenes))
         {
             var name = Path.GetFileName(dir);
             using var raw = new BinaryReader(File.OpenRead(Path.Combine(dir, "dbfile0000.raw16")));

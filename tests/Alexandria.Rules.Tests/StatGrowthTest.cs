@@ -1,20 +1,19 @@
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace Alexandria.Rules.Tests;
 
 public class StatGrowthTests
 {
-    private const String DataRoot = @"C:\Dev\Memoria\FF9Data\Data";
-
     private static CharacterBaseStats Zidane()
-        => CharacterBaseStats.Load(Path.Combine(DataRoot, @"Characters\BaseStats.csv"))
+        => CharacterBaseStats.Load(Path.Combine(FF9Data.Data, @"Characters\BaseStats.csv"))
             .First(c => c.Name == "Zidane");
 
     [Fact]
     public void Level_1_Zidane_has_his_famous_starting_numbers()
     {
         var z = Zidane();
-        var table = LevelingTable.Load(Path.Combine(DataRoot, @"Characters\Leveling.csv"));
+        var table = LevelingTable.Load(Path.Combine(FF9Data.Data, @"Characters\Leveling.csv"));
 
         Assert.Equal(23, StatGrowth.Speed(z, 1, GrowthBonuses.None));
         Assert.Equal(21, StatGrowth.Strength(z, 1, GrowthBonuses.None));
@@ -43,7 +42,7 @@ public class StatGrowthTests
         Assert.Equal(490, bonus.MagicStones);
 
         var z = Zidane();
-        var table = LevelingTable.Load(Path.Combine(DataRoot, @"Characters\Leveling.csv"));
+        var table = LevelingTable.Load(Path.Combine(FF9Data.Data, @"Characters\Leveling.csv"));
         var sheet = StatGrowth.AtLevel(z, table, 99, bonus);
 
         Assert.Equal(32, sheet.Speed);       // 23 + 99/10(=9)  + 0

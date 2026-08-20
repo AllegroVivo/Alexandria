@@ -1,10 +1,11 @@
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace Alexandria.Rules.Tests;
 
 public class ApEarnedTests
 {
-    private static readonly RulesDB Db = RulesDB.Load(@"C:\Dev\Memoria\FF9Data\Data");
+    private static readonly RulesDB Db = RulesDB.Load(FF9Data.Data);
 
     [Fact]
     public void A_level_fourteen_vivi_knows_the_burmecia_loadout()

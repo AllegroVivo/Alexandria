@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Alexandria.Battle;
+using Alexandria.Formats;
 using Alexandria.Formats.Scenes.BattleScene;
 using Alexandria.Formats.Scripts;
 
@@ -10,15 +11,13 @@ namespace ff9tool;
 /// Whatever throws lands on the wishlist.</summary>
 public static class MindCensusCommand
 {
-    private const String SceneRoot = @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene";
-
     public static void Run()
     {
         Int32 scenes = 0, minds = 0, clean = 0, reactions = 0, reactionsClean = 0, loops = 0, loopsClean = 0;
         var wishlist = new Dictionary<String, Int32>();
         var examples = new Dictionary<String, String>();
 
-        foreach (var dir in Directory.EnumerateDirectories(SceneRoot))
+        foreach (var dir in Directory.EnumerateDirectories(FF9Data.Scenes))
         {
             var name = Path.GetFileName(dir);
             using var eb = new BinaryReader(File.OpenRead(Path.Combine(dir, name + ".eb")));

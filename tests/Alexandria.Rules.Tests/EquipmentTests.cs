@@ -1,13 +1,12 @@
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace Alexandria.Rules.Tests;
 
 public class EquipmentTests
 {
-    private const String DataRoot = @"C:\Dev\Memoria\FF9Data\Data";
-
     private static IReadOnlyDictionary<Int32, ItemStats> Stats()
-        => ItemStats.Load(Path.Combine(DataRoot, @"Items\Stats.csv"));
+        => ItemStats.Load(Path.Combine(FF9Data.Data, @"Items\Stats.csv"));
 
     [Fact]
     public void Known_bonus_rows_load_correctly()
@@ -28,7 +27,7 @@ public class EquipmentTests
         var bonus = GrowthSimulator.LevelUpTo(99, GrowthBonuses.None, perLevel);
         Assert.Equal(98, bonus.Speed);
 
-        var z = CharacterBaseStats.Load(Path.Combine(DataRoot, @"Characters\BaseStats.csv"))
+        var z = CharacterBaseStats.Load(Path.Combine(FF9Data.Data, @"Characters\BaseStats.csv"))
             .First(c => c.Name == "Zidane");
         Assert.Equal(35, StatGrowth.Speed(z, 99, bonus));   // 23 + 9 + 3, vs 32 naked
     }

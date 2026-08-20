@@ -1,4 +1,5 @@
 using Alexandria.Battle;
+using Alexandria.Formats;
 using Alexandria.Formats.Scenes.BattleScene;
 
 namespace Alexandria.Battle.Tests;
@@ -8,7 +9,7 @@ public class BattleUnitTests
     [Fact]
     public void Type_C_wakes_up_ready_to_fight()
     {
-        var path = @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene\EVT_BATTLE_AC_E028F\dbfile0000.raw16";
+        var path = Path.Combine(FF9Data.Scene("EVT_BATTLE_AC_E028F"), "dbfile0000.raw16");
         using var reader = new BinaryReader(File.OpenRead(path));
         var scene = BattleScene.Read(reader);
 

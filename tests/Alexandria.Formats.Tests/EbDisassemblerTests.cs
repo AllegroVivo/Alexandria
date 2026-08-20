@@ -4,8 +4,6 @@ namespace Alexandria.Formats.Tests;
 
 public class EbDisassemblerTests
 {
-    private const String SceneRoot = @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene";
-
     [Fact]
     public void Constants_and_arithmetic_render_infix()
     {
@@ -38,8 +36,7 @@ public class EbDisassemblerTests
     [Fact]
     public void The_death_trigger_reads_in_plain_text()
     {
-        using var reader = new BinaryReader(File.OpenRead(
-            Path.Combine(SceneRoot, "EVT_BATTLE_CH_E093", "EVT_BATTLE_CH_E093.eb")));
+        using var reader = new BinaryReader(File.OpenRead(FF9Data.SceneScript("EVT_BATTLE_CH_E093")));
         var ozma = EbScript.Read(reader).Entries[1];
 
         var lines = ozma.Functions.SelectMany(f => EbDisassembler.Disassemble(f)).ToList();
@@ -50,8 +47,7 @@ public class EbDisassemblerTests
     [Fact]
     public void Attack_constants_render_with_their_seq_names()
     {
-        using var reader = new BinaryReader(File.OpenRead(
-            Path.Combine(SceneRoot, "EVT_BATTLE_CH_E093", "EVT_BATTLE_CH_E093.eb")));
+        using var reader = new BinaryReader(File.OpenRead(FF9Data.SceneScript("EVT_BATTLE_CH_E093")));
         var counter = EbScript.Read(reader).Entries[1].Functions.Single(f => f.Tag == 6);
 
         var lines = EbDisassembler.Disassemble(counter,
@@ -64,7 +60,7 @@ public class EbDisassemblerTests
     [Fact]
     public void Ozmas_battle_text_names_and_quest_line()
     {
-        var text = BattleText.Load(@"C:\Dev\Memoria\FF9Data\Text\Battle\211.mes");
+        var text = BattleText.Load(Path.Combine(FF9Data.Text, "211.mes"));
         Assert.Equal("Ozma", text[0]);
         Assert.Equal("Curaga", text[10]);   // 1 enemy name + attack index 9
         Assert.Equal("The spiritual power raised the attack range.", text[16]);
@@ -73,8 +69,7 @@ public class EbDisassemblerTests
     [Fact]
     public void Ozmas_loop_hunts_levels_divisible_by_four()
     {
-        using var reader = new BinaryReader(File.OpenRead(
-            Path.Combine(SceneRoot, "EVT_BATTLE_CH_E093", "EVT_BATTLE_CH_E093.eb")));
+        using var reader = new BinaryReader(File.OpenRead(FF9Data.SceneScript("EVT_BATTLE_CH_E093")));
         var loop = EbScript.Read(reader).Entries[1].Functions.Single(f => f.Tag == 1);
 
         var lines = EbDisassembler.Disassemble(loop);

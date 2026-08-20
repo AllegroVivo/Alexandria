@@ -1,4 +1,5 @@
 using Alexandria.Battle;
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace Alexandria.Battle.Tests;
@@ -8,7 +9,7 @@ public class StatusSpellTests
     [Fact]
     public void Status_sets_parse_by_bit_index()
     {
-        var sets = StatusSet.Load(@"C:\Dev\Memoria\FF9Data\Data\Battle\StatusSets.csv");
+        var sets = StatusSet.Load(Path.Combine(FF9Data.Data, @"Battle\StatusSets.csv"));
         Assert.Equal(0u, sets[0].StatusMask);                       // Set 0: none
         Assert.Equal((UInt32)BattleStatus.Death, sets[2].StatusMask);
         Assert.Equal((UInt32)BattleStatus.Sleep, sets[17].StatusMask);

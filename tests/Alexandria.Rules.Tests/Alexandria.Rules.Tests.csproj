@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Alexandria.Rules\Alexandria.Rules.csproj" />
+    <ProjectReference Include="..\..\src\Alexandria.Formats\Alexandria.Formats.csproj" />
   </ItemGroup>
 
 </Project>

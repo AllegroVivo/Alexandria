@@ -1,14 +1,12 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using Alexandria.Formats;
 using Alexandria.Formats.Scripts;
 
 namespace ff9tool;
 
 public static class ScriptCommand
 {
-    private const String DataRoot = @"C:\Dev\Memoria\FF9Data";
-    private const String SceneRoot = DataRoot + @"\BattleMap\BattleScene";
-
     public static void Run(String[] args)
     {
         switch (args.Length)
@@ -24,7 +22,7 @@ public static class ScriptCommand
         Int32 parsed = 0, failed = 0, functions = 0, complete = 0;
         var blockers = new Dictionary<Int32, Int32>();
 
-        foreach (var dir in Directory.EnumerateDirectories(SceneRoot))
+        foreach (var dir in Directory.EnumerateDirectories(FF9Data.Scenes))
         {
             var name = Path.GetFileName(dir);
             try
@@ -59,8 +57,7 @@ public static class ScriptCommand
 
     private static void Describe(String sceneName)
     {
-        using var reader = new BinaryReader(
-            File.OpenRead(Path.Combine(SceneRoot, sceneName, sceneName + ".eb")));
+        using var reader = new BinaryReader(File.OpenRead(FF9Data.SceneScript(sceneName)));
         var script = EbScript.Read(reader);
         
         Console.WriteLine($"{sceneName}: {script.EntryCount} entries");
@@ -74,15 +71,11 @@ public static class ScriptCommand
 
     private static void DisassembleEntry(String sceneName, Int32 entryIndex)
     {
-        var sceneDir = Path.Combine(SceneRoot, sceneName);
+        var sceneDir = FF9Data.Scene(sceneName);
         var attackNames = Directory.EnumerateFiles(sceneDir, "*.seq")
             .Select(f => Path.GetFileNameWithoutExtension(f))
             .ToDictionary(s => Int32.Parse(s[..2]), s => s[3..]);
-
-        var sceneIDs = SceneIDs.Load(Path.Combine(DataRoot, "SceneData.csv"));
-        var mesPath = Path.Combine(DataRoot, @"Text\Battle",
-            sceneIDs[sceneName["EVT_BATTLE_".Length..]] + ".mes");
-        var battleText = File.Exists(mesPath) ? BattleText.Load(mesPath) : null;
+        var battleText = FF9Data.BattleTextFor(sceneName);
         
         using var reader = new BinaryReader(
             File.OpenRead(Path.Combine(sceneDir, sceneName + ".eb")));

@@ -1,15 +1,14 @@
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace Alexandria.Rules.Tests;
 
 public class LoaderTests
 {
-    private const String DataRoot = @"C:\Dev\Memoria\FF9Data\Data";
-
     [Fact]
     public void Zidane_base_stats_load_correctly()
     {
-        var stats = CharacterBaseStats.Load(Path.Combine(DataRoot, @"Characters\BaseStats.csv"));
+        var stats = CharacterBaseStats.Load(Path.Combine(FF9Data.Data, @"Characters\BaseStats.csv"));
         var zidane = stats.First(c => c.Name == "Zidane");
         Assert.Equal(23, zidane.Dexterity);
         Assert.Equal(21, zidane.Strength);
@@ -21,7 +20,7 @@ public class LoaderTests
     [Fact]
     public void Leveling_table_has_99_levels_with_rising_experience()
     {
-        var table = LevelingTable.Load(Path.Combine(DataRoot, @"Characters\Leveling.csv"));
+        var table = LevelingTable.Load(Path.Combine(FF9Data.Data, @"Characters\Leveling.csv"));
         Assert.Equal(0u, table.ForLevel(1).ExperienceToReach);
         for (var level = 2; level <= LevelingTable.MaxLevel; level++)
             Assert.True(table.ForLevel(level).ExperienceToReach > table.ForLevel(level - 1).ExperienceToReach);

@@ -1,4 +1,5 @@
 using Alexandria.Battle;
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace ff9tool;
@@ -9,7 +10,7 @@ public static class PlayerAbilityCensusCommand
 
     public static void Run()
     {
-        var db = RulesDB.Load(DataRoot);
+        var db = RulesDB.Load(FF9Data.Data);
         var uses = new Dictionary<AbilityScript, Int32>();
         var examples = new Dictionary<AbilityScript, String>();
         var distinct = new HashSet<Int32>();

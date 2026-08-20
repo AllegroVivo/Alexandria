@@ -1,3 +1,4 @@
+using Alexandria.Formats;
 using Alexandria.Formats.Scripts;
 
 public class EbVMTests
@@ -22,8 +23,7 @@ public class EbVMTests
 
     private static EbVM TypeC(params Int32[] rolls)
     {
-        using var reader = new BinaryReader(File.OpenRead(
-            @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene\EVT_BATTLE_AC_E028F\EVT_BATTLE_AC_E028F.eb"));
+        using var reader = new BinaryReader(File.OpenRead(FF9Data.SceneScript("EVT_BATTLE_AC_E028F")));
         return new EbVM(EbScript.Read(reader).Entries[1], new ScriptedHost(rolls));
     }
 

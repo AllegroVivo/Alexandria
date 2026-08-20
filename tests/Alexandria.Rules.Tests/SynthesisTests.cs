@@ -1,13 +1,12 @@
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace Alexandria.Rules.Tests;
 
 public class SynthesisTests
 {
-    private const String DataRoot = @"C:\Dev\Memoria\FF9Data\Data";
-
     private static IReadOnlyList<SynthesisRecipe> Recipes()
-        => SynthesisRecipe.Load(Path.Combine(DataRoot, @"Items\Synthesis.csv"));
+        => SynthesisRecipe.Load(Path.Combine(FF9Data.Data, @"Items\Synthesis.csv"));
 
     [Fact]
     public void Butterfly_Sword_is_a_Dagger_plus_a_Mage_Masher_for_300_gil()
@@ -27,7 +26,7 @@ public class SynthesisTests
     [Fact]
     public void Every_recipe_references_real_items()
     {
-        var items = Item.Load(Path.Combine(DataRoot, @"Items\Items.csv"));
+        var items = Item.Load(Path.Combine(FF9Data.Data, @"Items\Items.csv"));
         foreach (var r in Recipes())
         {
             Assert.True(items.ContainsKey(r.ResultItemID), $"{r.Name}: result item {r.ResultItemID} missing");

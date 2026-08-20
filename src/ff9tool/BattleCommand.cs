@@ -1,4 +1,5 @@
 using Alexandria.Battle;
+using Alexandria.Formats;
 using Alexandria.Formats.Memoria;
 using Alexandria.Formats.Scenes.BattleScene;
 using Alexandria.Rules;
@@ -8,9 +9,7 @@ namespace ff9tool;
 
 public static class BattleCommand
 {
-    private const String DefaultScene = @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene\EVT_BATTLE_AC_E028F";
-    private const String DataRoot = @"C:\Dev\Memoria\FF9Data\Data";
-    
+    private static readonly String DefaultScene = FF9Data.Scene("EVT_BATTLE_AC_E028F");
     private static readonly HashSet<AbilityScript> Spells =
     [
         AbilityScript.MagicAttack, AbilityScript.MagicRecovery, AbilityScript.MagicCureStatus,
@@ -23,7 +22,7 @@ public static class BattleCommand
     public static void Run(String[] args)
     {
         var sceneDir = args.Length > 0 ? args[0] : DefaultScene;
-        var db = RulesDB.Load(DataRoot);
+        var db = RulesDB.Load(FF9Data.Data);
         var rng = new Random();
 
         using var reader = new BinaryReader(File.OpenRead(Path.Combine(sceneDir, "dbfile0000.raw16")));
@@ -103,11 +102,7 @@ public static class BattleCommand
             director.Request(1, 7);
         }
 
-        var sceneIDS = SceneIDs.Load(@"C:\Dev\Memoria\FF9Data\SceneData.csv");
-        var mesPath = Path.Combine(@"C:\Dev\Memoria\FF9Data\Text\Battle",
-            sceneIDS[Path.GetFileName(sceneDir)["EVT_BATTLE_".Length..]] + ".mes");
-        var battleText = File.Exists(mesPath) ? BattleText.Load(mesPath) : null;
-
+        var battleText = FF9Data.BattleTextFor(Path.GetFileName(sceneDir));
         var spellbook = party.ToDictionary(
             p => p.Name,
             p => Spellbook.For(db, p.Name,

@@ -1,3 +1,4 @@
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace Alexandria.Battle.Tests;
@@ -67,7 +68,7 @@ public class StatusDataTests
     [Fact]
     public void Status_data_loads_the_sleep_and_stop_rows()
     {
-        var data = StatusEntry.Load(@"C:\Dev\Memoria\FF9Data\Data\Battle\StatusData.csv");
+        var data = StatusEntry.Load(Path.Combine(FF9Data.Data, @"Battle\StatusData.csv"));
 
         Assert.Equal(25, data[17].ContiCount);          // Sleep's duration count
         Assert.Equal(1u << 15, data[17].ClearOnApply);  // Sleep strips Defend

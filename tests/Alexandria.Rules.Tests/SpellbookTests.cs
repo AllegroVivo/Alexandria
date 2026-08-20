@@ -1,10 +1,11 @@
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace Alexandria.Rules.Tests;
 
 public class SpellbookTests
 {
-    private static readonly RulesDB Db = RulesDB.Load(@"C:\Dev\Memoria\FF9Data\Data");
+    private static readonly RulesDB Db = RulesDB.Load(FF9Data.Data);
 
     [Fact]
     public void Ability_arrays_parse_and_drop_the_zero_sentinel()

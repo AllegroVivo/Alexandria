@@ -1,10 +1,11 @@
+using Alexandria.Formats;
 using Alexandria.Rules;
 
 namespace Alexandria.Rules.Tests;
 
 public class AbilityTests
 {
-    private const String AbilitiesRoot = @"C:\Dev\Memoria\FF9Data\Data\Characters\Abilities";
+    private static readonly String AbilitiesRoot = Path.Combine(FF9Data.Data, @"Characters\Abilities");
 
     [Fact]
     public void Vivi_learns_the_fire_line_at_the_remembered_costs()

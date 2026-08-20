@@ -1,4 +1,5 @@
 using Alexandria.Battle;
+using Alexandria.Formats;
 using Alexandria.Formats.Scripts;
 
 namespace Alexandria.Battle.Tests;
@@ -72,15 +73,13 @@ public class EbVmOracleTests
 
     private static EbVM TypeCVm(BattleHost host)
     {
-        using var reader = new BinaryReader(File.OpenRead(
-            @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene\EVT_BATTLE_AC_E028F\EVT_BATTLE_AC_E028F.eb"));
+        using var reader = new BinaryReader(File.OpenRead(FF9Data.SceneScript("EVT_BATTLE_AC_E028F")));
         return new EbVM(EbScript.Read(reader).Entries[1], host);
     }
 
     private static EbEntry BandersnatchEntry()
     {
-        using var reader = new BinaryReader(File.OpenRead(
-            @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene\EVT_BATTLE_AC_E028F\EVT_BATTLE_AC_E028F.eb"));
+        using var reader = new BinaryReader(File.OpenRead(FF9Data.SceneScript("EVT_BATTLE_AC_E028F")));
         return EbScript.Read(reader).Entries[2];
     }
 
