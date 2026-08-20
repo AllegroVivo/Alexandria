@@ -10,6 +10,15 @@ public static class BattleCommand
 {
     private const String DefaultScene = @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene\EVT_BATTLE_AC_E028F";
     private const String DataRoot = @"C:\Dev\Memoria\FF9Data\Data";
+    
+    private static readonly HashSet<AbilityScript> Spells =
+    [
+        AbilityScript.MagicAttack, AbilityScript.MagicRecovery, AbilityScript.MagicCureStatus,
+        AbilityScript.MagicApplyNegativeStatus, AbilityScript.MagicApplyPositiveStatus,
+        AbilityScript.MagicGravityDamage, AbilityScript.Revive, AbilityScript.Death,
+        AbilityScript.DrainHp, AbilityScript.DrainMp, AbilityScript.Meteorite,
+        AbilityScript.FlareStar, AbilityScript.LvHoly, AbilityScript.Mini
+    ];
 
     public static void Run(String[] args)
     {
@@ -172,7 +181,7 @@ public static class BattleCommand
     private static void Narrate(BattleEvent e)
     {
         if (e.Ability is not null)
-            Console.WriteLine($"{e.Actor.Name} {(e.Ability.Script == AbilityScript.MagicAttack ? "casts" : "uses")} {e.Ability.Name}!");
+            Console.WriteLine($"{e.Actor.Name} {(Spells.Contains(e.Ability.Script) ? "casts" : "uses")} {e.Ability.Name}!");
 
         var line = e.Result.Outcome switch
         {

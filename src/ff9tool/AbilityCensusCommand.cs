@@ -44,7 +44,8 @@ public static class AbilityCensusCommand
         Console.WriteLine("script usage, most-used first:");
         foreach (var (script, count) in uses.OrderByDescending(u => u.Value))
             Console.WriteLine(
-                $"  {count,5}× {(Int32)script,3} {script,-30} " +
+                $"  {count,5}× {(Int32)script,3} " +
+                $"{(Enum.IsDefined(script) ? script.ToString() : "(no script — choreography)"),-30} " +
                 $"{(BattleEngine.ResolvableScripts.Contains(script) ? "✓" : " ")}  " +
                 $"e.g. {examples[script]}");
     }
