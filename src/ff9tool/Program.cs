@@ -15,7 +15,10 @@ switch (args.Length)
         MindCensusCommand.Run();
         return;
     case > 0 when args[0] == "abilities":
-        AbilityCensusCommand.Run();
+        EnemyAbilityCensusCommand.Run();
+        return;
+    case > 0 when args[0] == "spells":
+        PlayerAbilityCensusCommand.Run();
         return;
 }
 

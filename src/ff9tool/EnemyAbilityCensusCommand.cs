@@ -6,7 +6,7 @@ using Alexandria.Rules;
 namespace ff9tool;
 
 /// <summary>Which ability scripts the game's rosters actually need.</summary>
-public static class AbilityCensusCommand
+public static class EnemyAbilityCensusCommand
 {
     private const String SceneRoot = @"C:\Dev\Memoria\FF9Data\BattleMap\BattleScene";
 

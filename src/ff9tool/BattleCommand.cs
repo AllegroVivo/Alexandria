@@ -198,6 +198,11 @@ public static class BattleCommand
             AttackOutcome.Healed when e.Result.Damage > 0 => $"{e.Target.Name} recovers {e.Result.Damage} HP!",
             AttackOutcome.Healed => $"{e.Target.Name} is restored.",
             AttackOutcome.MPDamage => $"{e.Target.Name} loses {e.Result.Damage} MP!",
+            AttackOutcome.Scanned =>
+                $"{e.Target.Name}: HP {e.Target.CurrentHP}/{e.Target.MaxHP}  MP {e.Target.CurrentMP}/{e.Target.MaxMP}  " +
+                $"Lv{e.Target.Level}  Str {e.Target.Strength} Mag {e.Target.Magic}  " +
+                $"Def {e.Target.PhysicalDefense}/{e.Target.MagicalDefense}  " +
+                $"weak {e.Target.WeakElements}, absorbs {e.Target.AbsorbElements}",
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
         if (e.StatusesAdded != 0 && e.Result.Damage > 0)

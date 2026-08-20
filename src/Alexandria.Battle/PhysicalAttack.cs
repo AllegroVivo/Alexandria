@@ -10,7 +10,8 @@ public enum AttackOutcome
     Absorbed,
     NoEffect,
     Healed,
-    MPDamage
+    MPDamage,
+    Scanned
 }
 
 /// <summary>

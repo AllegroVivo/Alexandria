@@ -59,6 +59,16 @@ public sealed class BattleUnit
     public Int32 ModelType { get; set; }
     public Int32 ModelID { get; set; }
 
+    /// <summary>bi.t_gauge - whether this unit has a Trance gauge at all. Enemies get one
+    /// only when they are not immune to Trance (btl_init.cs:64); players have one unless
+    /// they are a temporary character or the story flag is off.</summary>
+    public Boolean HasTrance { get; set; } = true;
+    
+    public const Int32 TranceMax = 255;
+    
+    /// <summary>btl.trance, 0–TranceMax.</summary>
+    public Int32 TranceGauge { get; set; }
+
     public static BattleUnit FromEnemy(String name, BattleSceneMonsterParam m) => new()
     {
         Name = name,
@@ -83,7 +93,8 @@ public sealed class BattleUnit
         Category = m.Category,
         ImmuneStatuses = (BattleStatus)m.ResistStatus,
         DiesFighting = (m.Flags & 1) != 0,
-        ModelID = m.Geo
+        ModelID = m.Geo,
+        HasTrance = ((BattleStatus)m.ResistStatus & BattleStatus.Trance) == 0
     };
 
     public Boolean Has(BattleStatus status) => (Statuses & status) != 0;

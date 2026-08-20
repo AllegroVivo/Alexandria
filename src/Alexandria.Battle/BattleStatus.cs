@@ -13,6 +13,7 @@ public enum BattleStatus : UInt32
     Zombie = 1u << 6,
     EasyKill = 1u << 7,
     Death = 1u << 8,
+    LowHP = 1u << 9,
     Confuse = 1u << 10,
     Berserk = 1u << 11,
     Stop = 1u << 12,
