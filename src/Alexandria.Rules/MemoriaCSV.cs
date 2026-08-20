@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Alexandria.Rules;
 
 /// <summary>
@@ -9,7 +11,7 @@ public static class MemoriaCSV
 {
     public static IEnumerable<String[]> ReadRows(String path)
     {
-        foreach (var rawLine in File.ReadLines(path))
+        foreach (var rawLine in ReadLines(path))
         {
             var line = rawLine.Trim();
             if (line.Length == 0 || line.StartsWith('#'))
@@ -23,6 +25,21 @@ public static class MemoriaCSV
             if (fields.Length > 0)
                 yield return fields;
         }
+    }
+
+    private static String[] ReadLines(String path)
+    {
+        var bytes = File.ReadAllBytes(path);
+        String text;
+        try
+        {
+            text = new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            text = Encoding.Latin1.GetString(bytes).Replace('\u0092', '\u2019');
+        }
+        return text.Trim('\uFEFF').ReplaceLineEndings("\n").Split("\n");
     }
 
     public static Int32[] ParseIntArray(String field) =>
