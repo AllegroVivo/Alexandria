@@ -129,13 +129,12 @@ public static class BattleCommand
         foreach (var item in db.InitialItems)
             world.Items.Add(item.ID, item.Count);
 
-        var idByName = itemNames.ToDictionary(p => p.Value, p => p.Key);
-        foreach (var name in new[]
+        foreach (var id in new[]
                  {
-                     "Opal", "Topaz", "Peridot", "Aquamarine",
-                     "Garnet", "Lapis Lazuli", "Sapphire", "Amethyst", "Ore"
+                     ItemID.Opal, ItemID.Topaz, ItemID.Peridot, ItemID.Aquamarine,
+                     ItemID.Garnet, ItemID.LapisLazuli, ItemID.Sapphire, ItemID.Amethyst, ItemID.Ore
                  })
-            world.Items.Add(idByName[name], 20);
+            world.Items.Add(id, 20);
 
         var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng,
             statusTable: statusTable, host: host, director: director, world: world);
@@ -243,13 +242,13 @@ public static class BattleCommand
                 (e.Target.StealItems.Count == 0
                     ? "nothing"
                     : String.Join(", ", e.Target.StealItems.AsEnumerable().Reverse()
-                        .Select(i => itemNames.GetValueOrDefault(i, $"item {i}")))),
+                        .Select(i => itemNames.GetValueOrDefault((Int32)i, $"item {(Int32)i}")))),
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
         if (e.StatusesAdded != 0 && e.Result.Damage > 0)
             line += $"  {e.Target.Name} is afflicted with {e.StatusesAdded}!";
         if (e.ItemMoved is { } moved)
-            line += $"  — {itemNames.GetValueOrDefault(moved, $"item {moved}")}!";
+            line += $"  — {itemNames.GetValueOrDefault((Int32)moved, $"item {(Int32)moved}")}!";
         Console.WriteLine(line + (e.Target.IsAlive ? "" : $"  {e.Target.Name} falls!"));
     }
 

@@ -1,28 +1,30 @@
+using Alexandria.Rules;
+
 namespace Alexandria.Battle;
 
 public sealed class Inventory
 {
     public const Int32 StackMax = 99;
 
-    private readonly Dictionary<Int32, Int32> _counts = [];
+    private readonly Dictionary<ItemID, Int32> _counts = [];
 
-    public Int32 this[Int32 itemId] => _counts.GetValueOrDefault(itemId);
+    public Int32 this[ItemID item] => _counts.GetValueOrDefault(item);
 
-    public void Add(Int32 itemId, Int32 count = 1)
-        => _counts[itemId] = Math.Min(StackMax, this[itemId] + count);
+    public void Add(ItemID item, Int32 count = 1)
+        => _counts[item] = Math.Min(StackMax, this[item] + count);
 
-    public Boolean Remove(Int32 itemId, Int32 count = 1)
+    public Boolean Remove(ItemID item, Int32 count = 1)
     {
-        var held = this[itemId];
+        var held = this[item];
         if (held < count)
             return false;
         if (held == count)
-            _counts.Remove(itemId);
+            _counts.Remove(item);
         else
-            _counts[itemId] = held - count;
+            _counts[item] = held - count;
         return true;
     }
 
-    public IEnumerable<KeyValuePair<Int32, Int32>> Contents => _counts;
+    public IEnumerable<KeyValuePair<ItemID, Int32>> Contents => _counts;
 }
 

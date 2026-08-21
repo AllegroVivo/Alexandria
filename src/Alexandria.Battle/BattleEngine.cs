@@ -10,7 +10,7 @@ public sealed record BattleEvent(
     AttackResult Result,
     BattleStatus StatusesAdded = 0,
     BattleAbility? Ability = null,
-    Int32? ItemMoved = null);
+    ItemID? ItemMoved = null);
 
 /// <summary>
 /// The headless battle loop: tick gauges until someone is ready, let them act, reset, repeat.

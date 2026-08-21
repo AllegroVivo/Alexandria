@@ -5,9 +5,6 @@ namespace Alexandria.Battle.Tests;
 
 public class InventoryTests
 {
-    private const Int32 Potion = 236;
-    private const Int32 Ore = 254;
-
     // Spirit 0 keeps the crit block out of the dice (q = Spirit >> 2), and no evade means
     // the physical rolls can never turn a steal into a miss — so these tests can use a
     // plain seeded Random and still be deterministic about what they assert.
@@ -25,22 +22,22 @@ public class InventoryTests
     public void Stacks_add_up_and_stop_at_ninety_nine()
     {
         var bag = new Inventory();
-        bag.Add(Potion, 60);
-        bag.Add(Potion, 60);
+        bag.Add(ItemID.Potion, 60);
+        bag.Add(ItemID.Potion, 60);
 
-        Assert.Equal(Inventory.StackMax, bag[Potion]);
+        Assert.Equal(Inventory.StackMax, bag[ItemID.Potion]);
     }
 
     [Fact]
     public void Taking_what_you_do_not_have_reports_failure_and_changes_nothing()
     {
         var bag = new Inventory();
-        bag.Add(Potion, 2);
+        bag.Add(ItemID.Potion, 2);
 
-        Assert.False(bag.Remove(Potion, 3));
-        Assert.Equal(2, bag[Potion]);
-        Assert.False(bag.Remove(Ore));
-        Assert.Equal(0, bag[Ore]);
+        Assert.False(bag.Remove(ItemID.Potion, 3));
+        Assert.Equal(2, bag[ItemID.Potion]);
+        Assert.False(bag.Remove(ItemID.Ore));
+        Assert.Equal(0, bag[ItemID.Ore]);
     }
 
     [Fact]
@@ -48,10 +45,10 @@ public class InventoryTests
     {
         // the doc comment's claim: absent, not a zero-count row
         var bag = new Inventory();
-        bag.Add(Potion);
+        bag.Add(ItemID.Potion);
 
-        Assert.True(bag.Remove(Potion));
-        Assert.Equal(0, bag[Potion]);
+        Assert.True(bag.Remove(ItemID.Potion));
+        Assert.Equal(0, bag[ItemID.Potion]);
         Assert.Empty(bag.Contents);
     }
 
@@ -62,16 +59,16 @@ public class InventoryTests
     {
         // RemoveItem reads Command.HitRate, so Rate IS the item id (0101_EnemyStealScript.cs:33)
         var world = new WorldState();
-        world.Items.Add(Potion, 3);
+        world.Items.Add(ItemID.Potion, 3);
         var victim = Fighter("Victim");
         var thief = Fighter("Thief");
         var engine = new BattleEngine([victim], [thief], EncounterKind.Normal, new Random(1), world: world);
 
         var e = engine.ExecuteAbility(thief, victim,
-            new BattleAbility("Steal", AbilityScript.EnemySteal, 0, Element.None, Potion, 0, 0));
+            new BattleAbility("Steal", AbilityScript.EnemySteal, 0, Element.None, (Int32)ItemID.Potion, 0, 0));
 
-        Assert.Equal(2, world.Items[Potion]);
-        Assert.Equal(Potion, e.ItemMoved);
+        Assert.Equal(2, world.Items[ItemID.Potion]);
+        Assert.Equal(ItemID.Potion, e.ItemMoved);
     }
 
     [Fact]
@@ -83,7 +80,7 @@ public class InventoryTests
         var engine = new BattleEngine([victim], [thief], EncounterKind.Normal, new Random(1), world: world);
 
         var e = engine.ExecuteAbility(thief, victim,
-            new BattleAbility("Steal", AbilityScript.EnemySteal, 0, Element.None, Potion, 0, 0));
+            new BattleAbility("Steal", AbilityScript.EnemySteal, 0, Element.None, (Int32)ItemID.Potion, 0, 0));
 
         Assert.Equal(AttackOutcome.Hit, e.Result.Outcome);
         Assert.Null(e.ItemMoved);
@@ -93,16 +90,16 @@ public class InventoryTests
     public void Mug_steals_alongside_damage_that_never_misses()
     {
         var world = new WorldState();
-        world.Items.Add(Potion);
+        world.Items.Add(ItemID.Potion);
         var victim = Fighter("Victim");
         var thief = Fighter("Thief");
         var engine = new BattleEngine([victim], [thief], EncounterKind.Normal, new Random(1), world: world);
 
         var e = engine.ExecuteAbility(thief, victim,
-            new BattleAbility("Mug", AbilityScript.EnemyMug, 10, Element.None, Potion, 0, 0));
+            new BattleAbility("Mug", AbilityScript.EnemyMug, 10, Element.None, (Int32)ItemID.Potion, 0, 0));
 
         Assert.True(e.Result.Damage > 0);
-        Assert.Equal(Potion, e.ItemMoved);
+        Assert.Equal(ItemID.Potion, e.ItemMoved);
         Assert.Empty(world.Items.Contents);
     }
 
@@ -118,18 +115,19 @@ public class InventoryTests
         var e = engine.ExecuteAbility(eiko, wolf,
             new BattleAbility("Jewel", AbilityScript.Jewel, 0, Element.None, 100, 0, 0));
 
-        Assert.Equal(1, world.Items[Ore]);
-        Assert.Equal(Ore, e.ItemMoved);
+        Assert.Equal(1, world.Items[ItemID.Ore]);
+        Assert.Equal(ItemID.Ore, e.ItemMoved);
     }
 
     [Fact]
     public void Jewel_conjures_nothing_when_it_misses()
     {
-        // rate 1 → hit rate 1, and the rigged accuracy roll of 50 fails it
+        // a Normal encounter places both gauges first (one die each), THEN rate 1 gives a
+        // hit rate of 1, which the rigged accuracy roll of 50 fails
         var world = new WorldState();
         var eiko = Fighter("Eiko");
         var wolf = Fighter("Wolf");
-        var engine = new BattleEngine([eiko], [wolf], EncounterKind.Normal, new RiggedDice(50), world: world);
+        var engine = new BattleEngine([eiko], [wolf], EncounterKind.Normal, new RiggedDice(0, 0, 50), world: world);
 
         var e = engine.ExecuteAbility(eiko, wolf,
             new BattleAbility("Jewel", AbilityScript.Jewel, 0, Element.None, 1, 0, 0));
