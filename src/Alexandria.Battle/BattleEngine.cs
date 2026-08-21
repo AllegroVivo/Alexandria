@@ -37,6 +37,9 @@ public sealed partial class BattleEngine
     private delegate BattleEvent Verb(BattleEngine e, BattleUnit actor, BattleUnit target, BattleAbility ability, Boolean divided);
 
     private readonly IReadOnlyDictionary<ItemID, BattleAbility> _itemEffects;
+    
+    /// <summary>btl_scene.Info.SpecialStart - a scripted opening (bit 0 of the scene flags).</summary>
+    public Boolean SpecialStart { get; set; }
 
     public List<BattleUnit> Players { get; }
     public List<BattleUnit> Enemies { get; }
@@ -370,14 +373,14 @@ public sealed partial class BattleEngine
         [AbilityScript.Curse] = (e, actor, target, _, _) => e.ExecuteCurse(actor, target),
         [AbilityScript.AngelSnack] = (e, actor, target, ability, divided) => e.ExecuteAngelSnack(actor, target, ability, divided),
         [AbilityScript.LuckySeven] = (e, actor, target, _, _) => e.ExecuteLuckySeven(actor, target),
-        // AbilityScript.WhatIsThat,
+        [AbilityScript.WhatIsThat] = (e, actor, target, _, _) => e.ExecuteWhatIsThat(actor, target),
         // AbilityScript.ChangeRow,
         // AbilityScript.FleeIteration,
         // AbilityScript.Flee,
         // AbilityScript.Steal,
         [AbilityScript.Scan] = (e, actor, target, _, _) => e.ExecuteScan(actor, target),
         [AbilityScript.Detect] = (e, actor, target, _, _) => e.ExecuteDetect(actor, target),
-        // AbilityScript.Charge,
+        [AbilityScript.Charge] = (e, actor, target, ability, _) => e.ExecuteCharge(actor, target, ability),
         [AbilityScript.ItemSoft] = (e, actor, target, ability, _) => e.ExecuteItemSoft(actor, target, ability),
         // AbilityScript.MagicSwordAttack,
         // AbilityScript.Eat,

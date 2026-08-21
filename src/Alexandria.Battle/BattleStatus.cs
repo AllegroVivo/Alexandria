@@ -36,15 +36,16 @@ public enum BattleStatus : UInt32
     Reflect = 1u << 29,
     Jump = 1u << 30,
     GradualPetrify = 1u << 31,
-    
+
     PreventATBConfirm = Venom | Sleep | Freeze,
     CannotAct = Petrify | Venom | Stop | Freeze,
     CannotTrance = Petrify | Venom | Zombie | Death | Stop | Trance | Freeze,
-    
-    AnyPositive = AutoLife | Trance | Defend | Regen | Haste | Float | Shell 
+    NoInput = Petrify | Venom | Death | Confuse | Berserk | Sleep | Stop | Freeze | Jump,
+
+    AnyPositive = AutoLife | Trance | Defend | Regen | Haste | Float | Shell
                   | Protect | Vanish | Reflect,
-    AnyNegative = Petrify | Venom | Virus | Silence | Blind | Trouble | Zombie 
-                  | Death | Confuse | Stop | Poison | Sleep | Slow | Heat | Freeze 
+    AnyNegative = Petrify | Venom | Virus | Silence | Blind | Trouble | Zombie
+                  | Death | Confuse | Stop | Poison | Sleep | Slow | Heat | Freeze
                   | Doom | Mini | GradualPetrify
 }
 

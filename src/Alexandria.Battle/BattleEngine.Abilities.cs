@@ -569,7 +569,19 @@ public sealed partial class BattleEngine
             _ => 7777
         });
 
-    // AbilityScript.WhatIsThat,
+    /// <summary>What's That!? (mirror: 0054_WhatIsThatScript): The user points off-stage and
+    /// the target turns to look.</summary>
+    public BattleEvent ExecuteWhatIsThat(BattleUnit caster, BattleUnit target)
+    {
+        if (IsEnemy(target) && SpecialStart)
+            return Missed(caster, target);
+
+        target.TurnedAway = true;
+        if (!IsEnemy(target))
+            target.Row = target.DefaultRow;
+        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0));
+    }
+    
     // AbilityScript.ChangeRow,
     // AbilityScript.FleeIteration,
     // AbilityScript.Flee,
@@ -584,7 +596,29 @@ public sealed partial class BattleEngine
     public BattleEvent ExecuteDetect(BattleUnit caster, BattleUnit target)
         => Finish(caster, target, new AttackResult(AttackOutcome.Detected, 0));
 
-    // AbilityScript.Charge,
+    /// <summary>Charge! (mirror: 0061_ChargeScript): The user rallies every party member who
+    /// has low HP, causing each one immediately attacks a random enemy</summary>
+    public BattleEvent ExecuteCharge(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var rallied = Players
+            .Where(p => p.IsAlive && p.CurrentHP * 6 <= p.MaxHP && !p.Has(BattleStatus.NoInput))
+            .ToList();
+        var living = Enemies.Where(e => e.IsAlive).ToList();
+        if (rallied.Count == 0 || living.Count == 0)
+            return Missed(caster, target);
+
+        _reacting = true;
+        try
+        {
+            foreach (var ally in rallied)
+                PendingReactions.Add(ExecuteAttack(ally, living[_rng.Rand16() % living.Count]));
+        }
+        finally
+        {
+            _reacting = false;
+        }
+        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0));
+    }
 
     /// <summary>Soft (mirror: 0062_ItemSoftScript): cures Petrify and/or reduces the HP
     /// of any creature made of stone to 0.</summary>

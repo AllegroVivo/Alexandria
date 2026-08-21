@@ -75,6 +75,8 @@ public static class PhysicalAttack
             if (target.Has(BattleStatus.Sleep | BattleStatus.Mini))
                 modifiers += 1;
         }
+        if (target.TurnedAway)
+            modifiers += 1;
         if ((element & target.HalfElements) != 0)
             modifiers -= 1;
         if ((element & target.WeakElements) != 0)

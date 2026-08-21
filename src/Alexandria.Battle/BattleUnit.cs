@@ -74,6 +74,10 @@ public sealed class BattleUnit
     public IReadOnlyList<ItemID> StealItems { get; set; } = [];
     public ItemID Weapon { get; set; } = ItemID.NoItem;
     public BattleStatus WeaponStatus { get; set; }
+    
+    /// <summary>The row this character belongs in.</summary>
+    public Int32 DefaultRow { get; set; }
+    public Boolean TurnedAway { get; set; }
 
     public static BattleUnit FromEnemy(String name, BattleSceneMonsterParam m) => new()
     {

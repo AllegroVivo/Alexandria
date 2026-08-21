@@ -149,8 +149,11 @@ public static class BattleCommand
 
         var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng,
             statusTable: statusTable, host: host, director: director, world: world,
-            itemEffects: itemEffects);
-        
+            itemEffects: itemEffects)
+        {
+            SpecialStart = scene.Header.SpecialStart
+        };
+
         while (engine.TickUntilReady() is { } ready)
         {
             NarrateTicks(engine);
@@ -174,7 +177,8 @@ public static class BattleCommand
             
             foreach (var reaction in engine.PendingReactions)
             {
-                Console.WriteLine("  — counterattack! —");
+                if (engine.IsEnemy(reaction.Actor))
+                    Console.WriteLine("  — counterattack! —");
                 Narrate(reaction, itemNames);
             }
             engine.PendingReactions.Clear();
@@ -221,7 +225,8 @@ public static class BattleCommand
             WeakElements = (Element)kit.WeakElements,
             PlayerCategory = db.Parameters[baseStats.ID].Category,
             HasTrance = (db.Parameters[baseStats.ID].Category & CharacterCategory.SubPC) == 0,
-            Weapon = kit.WeaponItem, WeaponStatus = (BattleStatus)db.StatusSets[kit.WeaponStatusIndex].StatusMask
+            Weapon = kit.WeaponItem, WeaponStatus = (BattleStatus)db.StatusSets[kit.WeaponStatusIndex].StatusMask,
+            Row = db.Parameters[baseStats.ID].DefaultRow, DefaultRow = db.Parameters[baseStats.ID].DefaultRow
         };
     }
 
