@@ -341,7 +341,7 @@ public sealed partial class BattleEngine
         [AbilityScript.DifferentCasterHpAttack] = (e, actor, target, ability, _) => e.ExecuteMissingHPAttack(actor, target, ability),
         [AbilityScript.WhiteWind] = (e, actor, target, ability, _) => e.ExecuteWhiteWind(actor, target, ability),
         [AbilityScript.RandomMpDamage] = (e, actor, target, ability, _) => e.ExecuteRandomMPDamage(actor, target, ability),
-        // AbilityScript.Darkside,
+        [AbilityScript.Darkside] = (e, actor, target, ability, _) => e.ExecuteDarkside(actor, target, ability),
         [AbilityScript.ArmorBreak] = (e, actor, target, ability, _) => e.ExecuteArmorBreak(actor, target, ability),
         [AbilityScript.PowerBreak] = (e, actor, target, ability, _) => e.ExecutePowerBreak(actor, target, ability),
         [AbilityScript.MentalBreak] = (e, actor, target, ability, _) => e.ExecuteMentalBreak(actor, target, ability),

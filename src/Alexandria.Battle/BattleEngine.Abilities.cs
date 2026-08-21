@@ -331,8 +331,22 @@ public sealed partial class BattleEngine
         target.CurrentMP -= drained;
         return Finish(caster, target, new AttackResult(AttackOutcome.MPDamage, drained));
     }
-    
-    // AbilityScript.Darkside,
+
+    /// <summary>Darkside (mirror: 0032_DarksideScript): Spends an EIGHTH of the user's
+    /// maximum HP to swing.</summary>
+    public BattleEvent ExecuteDarkside(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var result = PhysicalAttack.Execute(caster, target,
+            caster.AttackPower * ability.Power / 10, _rng,
+            enemyStyle: IsEnemy(caster), element: ability.Elements, precise: true,
+            damageModifiers: TranceBonus(caster), statusModifiers: false);
+        PhysicalAttack.Apply(target, result);
+
+        if (result.Outcome != AttackOutcome.Guarded)
+            PhysicalAttack.Apply(caster, caster.MaxHP >> 3);
+
+        return Finish(caster, target, result);
+    }
 
     /// <summary>The four Breaks (mirror: 0033/0034/0035/0036) An ordinary magic accuracy roll,
     /// rate + Magic/4 + level difference, clamped and halved by Shell — and on a hit,

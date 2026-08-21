@@ -27,7 +27,8 @@ public static class PhysicalAttack
     public static AttackResult Execute(
         BattleUnit attacker, BattleUnit target, Int32 attackPower,
         Random rng, Boolean enemyStyle = false, Int32 damageModifiers = 0,
-        Element element = Element.None, Boolean precise = false)
+        Element element = Element.None, Boolean precise = false,
+        Boolean statusModifiers = true)
     {
         if (!precise)
         {
@@ -66,10 +67,13 @@ public static class PhysicalAttack
 
         // status modifiers (BattleTarget.cs): Defend/Protect −1, Sleep/Mini +1
         var modifiers = damageModifiers;
-        if (target.Has(BattleStatus.Defend | BattleStatus.Protect))
-            modifiers -= 1;
-        if (target.Has(BattleStatus.Sleep | BattleStatus.Mini))
-            modifiers += 1;
+        if (statusModifiers)
+        {
+            if (target.Has(BattleStatus.Defend | BattleStatus.Protect))
+                modifiers -= 1;
+            if (target.Has(BattleStatus.Sleep | BattleStatus.Mini))
+                modifiers += 1;
+        }
         if ((element & target.HalfElements) != 0)
             modifiers -= 1;
         if ((element & target.WeakElements) != 0)
