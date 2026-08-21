@@ -11,7 +11,8 @@ public enum AttackOutcome
     NoEffect,
     Healed,
     MPDamage,
-    Scanned
+    Scanned,
+    Detected
 }
 
 /// <summary>

@@ -23,6 +23,7 @@ public static class BattleCommand
     {
         var sceneDir = args.Length > 0 ? args[0] : DefaultScene;
         var db = RulesDB.Load(FF9Data.Data);
+        var itemNames = StringsTable.Load(FF9Data.ItemNames);
         var rng = new Random();
 
         using var reader = new BinaryReader(File.OpenRead(Path.Combine(sceneDir, "dbfile0000.raw16")));
@@ -55,6 +56,12 @@ public static class BattleCommand
             {
                 var type = put.TypeNumber;
                 var unit = BattleUnit.FromEnemy(labels[line], scene.Monsters[type]);
+                unit.StealItems =
+                [
+                    .. scene.Monsters[type].StealItems
+                        .Where(i => i != 255)
+                        .Select(i => itemNames.GetValueOrDefault(i, $"item {i}"))
+                ];
                 unit.AttackPower = scene.Attacks[names[type].DefaultAttack].Power;
                 unit.Abilities.AddRange(rosters[type].Where(n => n < scene.Attacks.Count).Select(n =>
                 {
@@ -129,7 +136,7 @@ public static class BattleCommand
             statusTable: statusTable, host: host, director: director, world: world);
 
         foreach (var gem in new[] { "Opal", "Topaz", "Peridot", "Aquamarine", "Garnet", "Lapis Lazuli", "Sapphire" })
-            engine.Gems[gem] = 20;
+            engine.ItemCounts[gem] = 20;
         
         while (engine.TickUntilReady() is { } ready)
         {
@@ -229,6 +236,11 @@ public static class BattleCommand
                 $"Lv{e.Target.Level}  Str {e.Target.Strength} Mag {e.Target.Magic}  " +
                 $"Def {e.Target.PhysicalDefense}/{e.Target.MagicalDefense}  " +
                 $"weak {e.Target.WeakElements}, absorbs {e.Target.AbsorbElements}",
+            AttackOutcome.Detected =>
+                $"{e.Target.Name} is carrying: " +
+                (e.Target.StealItems.Count == 0
+                    ? "nothing"
+                    : String.Join(", ", e.Target.StealItems.AsEnumerable().Reverse())),
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
         if (e.StatusesAdded != 0 && e.Result.Damage > 0)

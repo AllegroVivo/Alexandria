@@ -71,6 +71,8 @@ public sealed class BattleUnit
     /// <summary>btl.trance, 0–TranceMax.</summary>
     public Int32 TranceGauge { get; set; }
 
+    public IReadOnlyList<String> StealItems { get; set; } = [];
+
     public static BattleUnit FromEnemy(String name, BattleSceneMonsterParam m) => new()
     {
         Name = name,

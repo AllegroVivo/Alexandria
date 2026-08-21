@@ -31,5 +31,8 @@ public static class FF9Data
         var path = Path.Combine(Text, ids[sceneName["EVT_BATTLE_".Length..]] + ".mes");
         return File.Exists(path) ? BattleText.Load(path) : null;
     }
+
+    /// <summary>Localised display names; US only for now.</summary>
+    public static String ItemNames => Path.Combine(Root, @"Text\US\Items.strings");
 }
 

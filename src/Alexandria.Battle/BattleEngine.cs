@@ -28,8 +28,9 @@ public sealed partial class BattleEngine
 
     private delegate BattleEvent Verb(BattleEngine e, BattleUnit actor, BattleUnit target, BattleAbility ability, Boolean divided);
     
-    /// <summary>Gems the party is carrying, by item name.</summary>
-    public Dictionary<String, Int32> Gems { get; } = [];
+    /// <summary>Standing in for the party's inventory: how many of each
+    /// item they carry, by name.</summary>
+    public Dictionary<String, Int32> ItemCounts { get; } = [];
 
     public List<BattleUnit> Players { get; }
     public List<BattleUnit> Enemies { get; }
@@ -333,7 +334,7 @@ public sealed partial class BattleEngine
         [AbilityScript.GoblinPunch] = (e, actor, target, ability, divided) => e.ExecuteGoblinPunch(actor, target, ability, divided),
         [AbilityScript.LvDirectHPDamage] = (e, actor, target, ability, _) => e.ExecuteLevelDirectHP(actor, target, ability),
         [AbilityScript.LvHoly] = (e, actor, target, ability, divided) => e.ExecuteLevelMagic(actor, target, ability, divided),
-        // AbilityScript.LvReduceDefence,
+        [AbilityScript.LvReduceDefence] = (e, actor, target, ability, _) => e.ExecuteLevelDefenseDown(actor, target, ability),
         [AbilityScript.PreciseDirectHPDamage] = (e, actor, target, ability, _) => e.ExecuteDirectHP(actor, target, ability, precise: true),
         [AbilityScript.ThousandNeedles] = (e, actor, target, ability, _) => e.ExecuteThousandNeedles(actor, target, ability),
         [AbilityScript.DirectHPDamage] = (e, actor, target, ability, _) => e.ExecuteDirectHP(actor, target, ability, precise: false),
@@ -346,7 +347,7 @@ public sealed partial class BattleEngine
         [AbilityScript.PowerBreak] = (e, actor, target, ability, _) => e.ExecutePowerBreak(actor, target, ability),
         [AbilityScript.MentalBreak] = (e, actor, target, ability, _) => e.ExecuteMentalBreak(actor, target, ability),
         [AbilityScript.MagicBreak] = (e, actor, target, ability, _) => e.ExecuteMagicBreak(actor, target, ability),
-        // AbilityScript.Chakra,
+        [AbilityScript.Chakra] = (e, actor, target, ability, _) => e.ExecuteChakra(actor, target, ability),
         [AbilityScript.SpareChange] = (e, actor, target, ability, _) => e.ExecuteSpareChange(actor, target, ability),
         [AbilityScript.Lancer] = (e, actor, target, ability, _) => e.ExecuteLancer(actor, target, ability),
         [AbilityScript.DragonBreath] = (e, actor, target, ability, _) => e.ExecuteDragonBreath(actor, target, ability),
@@ -354,21 +355,21 @@ public sealed partial class BattleEngine
         // AbilityScript.Throw,
         [AbilityScript.Might] = (e, actor, target, ability, _) => e.ExecuteMight(actor, target, ability),
         // AbilityScript.Focus,
-        // AbilityScript.Sacrifice,
+        [AbilityScript.Sacrifice] = (e, actor, target, ability, _) => e.ExecuteSacrifice(actor, target, ability),
         // AbilityScript.SoulBlade,
         // AbilityScript.Spear,
-        // AbilityScript.Phoenix,
+        [AbilityScript.Phoenix] = (e, actor, target, ability, divided) => e.ExecutePhoenix(actor, target, ability, divided),
         [AbilityScript.SixDragons] = (e, actor, target, ability, _) => e.ExecuteSixDragons(actor, target, ability),
-        // AbilityScript.Curse,
+        [AbilityScript.Curse] = (e, actor, target, ability, _) => e.ExecuteCurse(actor, target, ability),
         // AbilityScript.AngelSnack,
-        // AbilityScript.LuckySeven,
+        [AbilityScript.LuckySeven] = (e, actor, target, ability, _) => e.ExecuteLuckySeven(actor, target, ability),
         // AbilityScript.WhatIsThat,
         // AbilityScript.ChangeRow,
         // AbilityScript.FleeIteration,
         // AbilityScript.Flee,
         // AbilityScript.Steal,
         [AbilityScript.Scan] = (e, actor, target, ability, _) => e.ExecuteScan(actor, target, ability),
-        // AbilityScript.Detect,
+        [AbilityScript.Detect] = (e, actor, target, ability, _) => e.ExecuteDetect(actor, target, ability),
         // AbilityScript.Charge,
         // AbilityScript.ItemSoft,
         // AbilityScript.MagicSwordAttack,
@@ -389,8 +390,8 @@ public sealed partial class BattleEngine
         // AbilityScript.MassSpear,
         // AbilityScript.Jewel,
         [AbilityScript.Summon] = (e, actor, target, ability, divided) => e.ExecuteSummon(actor, target, ability, divided),
-        // AbilityScript.Atomos,
-        // AbilityScript.Odin,
+        [AbilityScript.Atomos] = (e, actor, target, ability, _) => e.ExecuteAtomos(actor, target, ability),
+        [AbilityScript.Odin] = (e, actor, target, ability, _) => e.ExecuteOdin(actor, target, ability),
         [AbilityScript.Melt] = (e, actor, target, ability, _) => e.ExecuteMelt(actor, target, ability),
         [AbilityScript.HPSwitching] = (e, actor, target, ability, _) => e.ExecuteHPSwitch(actor, target, ability),
         // AbilityScript.HalfDefence,
@@ -411,7 +412,7 @@ public sealed partial class BattleEngine
         [AbilityScript.GrandCross] = (e, actor, target, ability, _) => e.ExecuteGrandCross(actor, target, ability),
         // AbilityScript.Swallow,
         // AbilityScript.PreciseEnemyPhysicalAttackAndChangeRow,
-        // AbilityScript.IaiStrike,
+        [AbilityScript.IaiStrike] = (e, actor, target, ability, divided) => e.ExecuteIaiStrike(actor, target, ability, divided),
         [AbilityScript.Mini] = (e, actor, target, ability, divided) => e.ExecuteMini(actor, target, ability, divided)
     }.ToFrozenDictionary();
 }
