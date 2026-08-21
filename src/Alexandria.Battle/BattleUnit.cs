@@ -72,6 +72,8 @@ public sealed class BattleUnit
     public Int32 TranceGauge { get; set; }
 
     public IReadOnlyList<ItemID> StealItems { get; set; } = [];
+    public ItemID Weapon { get; set; } = ItemID.NoItem;
+    public BattleStatus WeaponStatus { get; set; }
 
     public static BattleUnit FromEnemy(String name, BattleSceneMonsterParam m) => new()
     {

@@ -13,7 +13,9 @@ public sealed record EquipmentKit(
     Byte GuardElements,
     Byte AbsorbElements,
     Byte HalfElements,
-    Byte WeakElements)
+    Byte WeakElements,
+    ItemID WeaponItem,
+    Int32 WeaponStatusIndex)
 {
     public static EquipmentKit Resolve(DefaultEquipmentSet set,
         IReadOnlyDictionary<Int32, Item> items,
@@ -30,6 +32,8 @@ public sealed record EquipmentKit(
     {
         Int32 power = 0, pd = 0, pe = 0, md = 0, me = 0;
         Byte weaponElement = 0, boost = 0, guard = 0, absorb = 0, half = 0, weak = 0;
+        var weaponItem = ItemID.NoItem;
+        var weaponStatusIndex = 0;
         List<AbilityRef> taught = [];
 
         foreach (var id in slots)
@@ -49,6 +53,8 @@ public sealed record EquipmentKit(
             {
                 power = w.Power;
                 weaponElement = w.Elements;
+                weaponItem = (ItemID)id;
+                weaponStatusIndex = w.StatusIndex;
             }
             if (item.ArmorID >= 0 && armors.TryGetValue(item.ArmorID, out var a))
             {
@@ -61,7 +67,7 @@ public sealed record EquipmentKit(
 
         var growth = Equipment.GrowthPerLevel(slots.Where(id => id >= 0), items, growthStats);
         return new EquipmentKit(power, pd, pe, md, me, growth, taught,
-            weaponElement, boost, guard, absorb, half, weak);
+            weaponElement, boost, guard, absorb, half, weak, weaponItem, weaponStatusIndex);
     }
 }
 

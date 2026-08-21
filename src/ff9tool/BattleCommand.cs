@@ -165,12 +165,12 @@ public static class BattleCommand
                 foreach (var id in host.PendingDialogs)
                     Console.WriteLine($"  『{(battleText is not null && id < battleText.Count ? battleText[id] : $"battle text {id}")}』");
                 host.PendingDialogs.Clear();
-                foreach (var (attackId, targetMask) in host.PendingSpecials)
+                foreach (var (attackId, _) in host.PendingSpecials)
                     Console.WriteLine($"  ‹{attackNames.GetValueOrDefault(attackId, $"attack {attackId}")}›");
                 host.PendingSpecials.Clear();
             }
             else
-                Narrate(TakePlayerTurn(db, engine, ready, spellbook), itemNames);
+                Narrate(TakePlayerTurn(db, engine, ready, spellbook, world, itemEffects), itemNames);
             
             foreach (var reaction in engine.PendingReactions)
             {
@@ -220,7 +220,8 @@ public static class BattleCommand
             AbsorbElements = (Element)kit.AbsorbElements, HalfElements = (Element)kit.HalfElements,
             WeakElements = (Element)kit.WeakElements,
             PlayerCategory = db.Parameters[baseStats.ID].Category,
-            HasTrance = (db.Parameters[baseStats.ID].Category & CharacterCategory.SubPC) == 0
+            HasTrance = (db.Parameters[baseStats.ID].Category & CharacterCategory.SubPC) == 0,
+            Weapon = kit.WeaponItem, WeaponStatus = (BattleStatus)db.StatusSets[kit.WeaponStatusIndex].StatusMask
         };
     }
 
@@ -291,8 +292,9 @@ public static class BattleCommand
         }
     }
 
-    private static BattleEvent TakePlayerTurn(RulesDB db, BattleEngine engine,
-        BattleUnit actor, Dictionary<String, List<BattleAction>> spellbook)
+    private static BattleEvent TakePlayerTurn(RulesDB db, BattleEngine engine, BattleUnit actor, 
+        Dictionary<String, List<BattleAction>> spellbook, WorldState world,
+        IReadOnlyDictionary<ItemID, BattleAbility> itemEffects)
     {
         Console.WriteLine();
         foreach (var p in engine.Players)
@@ -300,26 +302,52 @@ public static class BattleCommand
 
         var castable = (spellbook.GetValueOrDefault(actor.Name) ?? [])
             .Where(s => s.MP <= actor.CurrentMP).ToList();
+        
+        // an item is offered only if the party holds one AND it has an effect to run
+        var usable = world.Items.Contents
+            .Where(entry => itemEffects.ContainsKey(entry.Key))
+            .Select(entry => (ID: entry.Key, Count: entry.Value, Ability: itemEffects[entry.Key]))
+            .OrderBy(x => x.Ability.Name)
+            .ToList();
 
-        if (castable.Count > 0)
+        if (castable.Count > 0 || usable.Count > 0)
         {
-            Console.Write($"{actor.Name}: [a]ttack or [c]ast? ");
-            if ((Console.ReadLine() ?? "").Trim().StartsWith("c", StringComparison.OrdinalIgnoreCase))
+            Console.Write($"{actor.Name}: [a]ttack{(castable.Count > 0 ? ", [c]ast" : "")}" +
+                          $"{(usable.Count > 0 ? " or [i]tem" : "")}? ");
+            var choice = (Console.ReadLine() ?? "").Trim();
+
+            if (castable.Count > 0 && choice.StartsWith("c", StringComparison.OrdinalIgnoreCase))
             {
                 for (var i = 0; i < castable.Count; i++)
                     Console.WriteLine($"  [{i + 1}] {castable[i].Name}  (MP {castable[i].MP})");
-                
+
                 var spell = Prompt(castable, s => s.Name, $"{actor.Name} casts which spell? ");
                 var target = spell.DefaultAlly
                     ? PromptAlly(engine, spell.ForDead, "On whom? ")
                     : PromptEnemy(engine, "On which target? ");
                 return engine.ExecuteAbility(actor, target, new BattleAbility(
                     spell.Name, spell.Script, spell.Power, (Element)spell.Elements, spell.Rate,
-                    (BattleStatus)db.StatusSets[spell.StatusIndex].StatusMask, spell.MP, -1, spell.TargetType,
-                    spell.ForDead));
+                    (BattleStatus)db.StatusSets[spell.StatusIndex].StatusMask, spell.MP, -1,
+                    spell.TargetType, spell.ForDead));
+            }
+
+            if (usable.Count > 0 && choice.StartsWith("i", StringComparison.OrdinalIgnoreCase))
+            {
+                for (var i = 0; i < usable.Count; i++)
+                    Console.WriteLine($"  [{i + 1}] {usable[i].Ability.Name}  ×{usable[i].Count}");
+
+                var picked = Prompt(usable, x => x.Ability.Name, $"{actor.Name} uses which item? ");
+                var effect = db.ItemEffects[db.Items[(Int32)picked.ID].EffectID];
+                var target = effect.DefaultAlly
+                    ? PromptAlly(engine, effect.ForDead, "On whom? ")
+                    : PromptEnemy(engine, "On which target? ");
+
+                world.Items.Remove(picked.ID);
+                return engine.ExecuteAbility(actor, target, picked.Ability);
             }
         }
-        return engine.ExecuteAttack(actor, PromptEnemy(engine, $"{actor.Name} attacks which target? "));
+
+        return engine.ExecuteBasicAttack(actor, PromptEnemy(engine, $"{actor.Name} attacks which target? "));
     }
 
     private static T Prompt<T>(List<T> options, Func<T, String> label, String question)

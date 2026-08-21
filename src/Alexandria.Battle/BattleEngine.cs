@@ -363,7 +363,7 @@ public sealed partial class BattleEngine
         [AbilityScript.Might] = (e, actor, target, ability, _) => e.ExecuteMight(actor, target, ability),
         // AbilityScript.Focus,
         [AbilityScript.Sacrifice] = (e, actor, target, _, _) => e.ExecuteSacrifice(actor, target),
-        // AbilityScript.SoulBlade,
+        [AbilityScript.SoulBlade] = (e, actor, target, ability, _) => e.ExecuteSoulBlade(actor, target, ability),
         // AbilityScript.Spear,
         [AbilityScript.Phoenix] = (e, actor, target, ability, divided) => e.ExecutePhoenix(actor, target, ability, divided),
         [AbilityScript.SixDragons] = (e, actor, target, _, _) => e.ExecuteSixDragons(actor, target),

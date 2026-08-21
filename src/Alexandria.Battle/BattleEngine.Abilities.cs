@@ -21,6 +21,14 @@ public sealed partial class BattleEngine
         ["Ark"] = ItemID.LapisLazuli,
         ["Fenrir"] = ItemID.Sapphire
     };
+    
+    /// <summary>The nine weapons Soul Blade accepts (mirror: 0046's switch).</summary>
+    private static readonly HashSet<ItemID> SoulBlades =
+    [
+        ItemID.ButterflySword, ItemID.TheOgre, ItemID.Exploda, ItemID.RuneTooth,
+        ItemID.AngelBless, ItemID.Sargatanas, ItemID.Masamune, ItemID.TheTower,
+        ItemID.UltimaWeapon
+    ];
 
     /// <summary>Mirror: BattleCalculator.MagicAccuracy + TryMagicHit — the ability's own
     /// rate plus Magic/4 plus the level difference, clamped to 1..100 and halved by Shell.
@@ -482,7 +490,13 @@ public sealed partial class BattleEngine
         return Finish(caster, target, new AttackResult(AttackOutcome.Healed, restored));
     }
 
-    // AbilityScript.SoulBlade,
+    /// <summary>Soul Blade (mirror: 0046_SoulBladeScript): The user throws their sword's own
+    /// status rider at the target - no damage, no accuracy roll.</summary>
+    public BattleEvent ExecuteSoulBlade(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => SoulBlades.Contains(caster.Weapon)
+            ? LandStatuses(caster, target, caster.WeaponStatus)
+            : Missed(caster, target);
+    
     // AbilityScript.Spear,
 
     /// <summary>Phoenix (mirror: 0049_PhoenixScript): Revive on an ally and ordinary
