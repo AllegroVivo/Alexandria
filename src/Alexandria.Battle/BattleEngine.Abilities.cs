@@ -333,10 +333,34 @@ public sealed partial class BattleEngine
     }
     
     // AbilityScript.Darkside,
-    // AbilityScript.ArmourBreak,
-    // AbilityScript.PowerBreak,
-    // AbilityScript.MentalBreak,
-    // AbilityScript.MagicBreak,
+
+    /// <summary>The four Breaks (mirror: 0033/0034/0035/0036) An ordinary magic accuracy roll,
+    /// rate + Magic/4 + level difference, clamped and halved by Shell — and on a hit,
+    /// one stat is written down.</summary>
+    private BattleEvent ExecuteBreak(BattleUnit caster, BattleUnit target, BattleAbility ability, Action<BattleUnit> reduce)
+    {
+        var outcome = MagicRoll(caster, target, ability.Rate);
+        if (outcome == AttackOutcome.Hit)
+            reduce(target);
+        return Finish(caster, target, new AttackResult(outcome, 0));
+    }
+
+    /// <summary>Armor Break (0033): physical defense halved.</summary>
+    public BattleEvent ExecuteArmorBreak(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => ExecuteBreak(caster, target, ability, u => u.PhysicalDefense /= 2);
+
+    /// <summary>Power Break (0034): Strength down to three quarters.</summary>
+    public BattleEvent ExecutePowerBreak(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => ExecuteBreak(caster, target, ability, u => u.Strength = u.Strength * 3 / 4);
+    
+    /// <summary>Mental Break (0035): magical defense halved.</summary>
+    public BattleEvent ExecuteMentalBreak(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => ExecuteBreak(caster, target, ability, u => u.MagicalDefense /= 2);
+    
+    /// <summary>Magic Break (0036): Magic down to three quarters.</summary>
+    public BattleEvent ExecuteMagicBreak(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => ExecuteBreak(caster, target, ability, u => u.Magic = u.Magic * 3 / 4);
+        
     // AbilityScript.Chakra,
 
     /// <summary>Spare Change (mirror: 0038_SpareChangeScript): Amarant throws

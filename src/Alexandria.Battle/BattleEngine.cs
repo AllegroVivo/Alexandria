@@ -307,7 +307,7 @@ public sealed partial class BattleEngine
         return ev with { Ability = ability };
     }
 
-    private static readonly FrozenDictionary<AbilityScript, Verb> Verbs = new Dictionary<AbilityScript, Verb>()
+    private static readonly FrozenDictionary<AbilityScript, Verb> Verbs = new Dictionary<AbilityScript, Verb>
     {
         // AbilityScript.BaseWeapon,
         // AbilityScript.SimpleWeapon,
@@ -342,10 +342,10 @@ public sealed partial class BattleEngine
         [AbilityScript.WhiteWind] = (e, actor, target, ability, _) => e.ExecuteWhiteWind(actor, target, ability),
         [AbilityScript.RandomMpDamage] = (e, actor, target, ability, _) => e.ExecuteRandomMPDamage(actor, target, ability),
         // AbilityScript.Darkside,
-        // AbilityScript.ArmourBreak,
-        // AbilityScript.PowerBreak,
-        // AbilityScript.MentalBreak,
-        // AbilityScript.MagicBreak,
+        [AbilityScript.ArmorBreak] = (e, actor, target, ability, _) => e.ExecuteArmorBreak(actor, target, ability),
+        [AbilityScript.PowerBreak] = (e, actor, target, ability, _) => e.ExecutePowerBreak(actor, target, ability),
+        [AbilityScript.MentalBreak] = (e, actor, target, ability, _) => e.ExecuteMentalBreak(actor, target, ability),
+        [AbilityScript.MagicBreak] = (e, actor, target, ability, _) => e.ExecuteMagicBreak(actor, target, ability),
         // AbilityScript.Chakra,
         [AbilityScript.SpareChange] = (e, actor, target, ability, _) => e.ExecuteSpareChange(actor, target, ability),
         [AbilityScript.Lancer] = (e, actor, target, ability, _) => e.ExecuteLancer(actor, target, ability),

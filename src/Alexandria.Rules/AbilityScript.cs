@@ -36,7 +36,7 @@ public enum AbilityScript
     WhiteWind = 30,
     RandomMpDamage = 31,
     Darkside = 32,
-    ArmourBreak = 33,
+    ArmorBreak = 33,
     PowerBreak = 34,
     MentalBreak = 35,
     MagicBreak = 36,
