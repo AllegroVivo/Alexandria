@@ -4,13 +4,20 @@ namespace Alexandria.Battle;
 
 public sealed partial class BattleEngine
 {
+    private const Int32 Amethyst = 225;
+    private const Int32 Ore = 254;
+    
     /// <summary>Which gem feeds which eidolon (mirror: 0085_SummonScript's switch).
     /// Madeen has none - it scales with the caster's level instead.</summary>
-    private static readonly Dictionary<String, String> SummonGem = new()
+    private static readonly Dictionary<String, Int32> SummonGem = new()
     {
-        ["Shiva"] = "Opal", ["Ifrit"] = "Topaz", ["Ramuh"] = "Peridot",
-        ["Leviathan"] = "Aquamarine", ["Bahamut"] = "Garnet",
-        ["Ark"] = "Lapis Lazuli", ["Fenrir"] = "Sapphire"
+        ["Shiva"] = 233,      // Opal
+        ["Ifrit"] = 234,      // Topaz
+        ["Ramuh"] = 231,      // Peridot
+        ["Leviathan"] = 226,  // Aquamarine
+        ["Bahamut"] = 224,    // Garnet
+        ["Ark"] = 235,        // Lapis Lazuli
+        ["Fenrir"] = 232      // Sapphire
     };
     
     /// <summary>Mirror: BattleCalculator.MagicAccuracy + TryMagicHit — the ability's own
@@ -335,7 +342,7 @@ public sealed partial class BattleEngine
             : FlatDamage(caster, target, ability.Power * 100 + ability.Rate);
 
     /// <summary>Pumpkin Head and kin (mirror: 0029): damage equals the caster's MISSING HP.</summary>
-    public BattleEvent ExecuteMissingHPAttack(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteMissingHPAttack(BattleUnit caster, BattleUnit target)
         => FlatDamage(caster, target, caster.MaxHP - caster.CurrentHP);
     
     /// <summary>White Wind (mirror: 0030_WhiteWindScript): a share of the CASTER's maximum
@@ -350,7 +357,7 @@ public sealed partial class BattleEngine
 
     /// <summary>Magic Hammer (mirror: 0031): drains a random amount of whatever MP the
     /// target still has, and gives the caster nothing.</summary>
-    public BattleEvent ExecuteRandomMPDamage(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteRandomMPDamage(BattleUnit caster, BattleUnit target)
     {
         if (target.CurrentMP == 0)
             return Finish(caster, target, new AttackResult(AttackOutcome.MPDamage, 0));
@@ -431,12 +438,12 @@ public sealed partial class BattleEngine
 
     /// <summary>Dragon Breath (mirror: 0040_DragonBreathScript): damage equal to the
     /// target's MISSING HP, dealt to every enemy.</summary>
-    public BattleEvent ExecuteDragonBreath(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteDragonBreath(BattleUnit caster, BattleUnit target)
         => FlatDamage(caster, target, target.MaxHP - target.CurrentHP);
 
     /// <summary>White Draw (mirror: 0041_WhiteDrawScript): restores MP to the WHOLE PARTY
     /// — a random amount up to twice the target's level, the same figure for everyone.</summary>
-    public BattleEvent ExecuteWhiteDraw(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteWhiteDraw(BattleUnit caster, BattleUnit target)
     {
         var restored = target.Level > 0 ? _rng.Rand16() % (target.Level * 2) : 0;
         foreach (var ally in Players.Where(p => p.IsAlive))
@@ -459,7 +466,7 @@ public sealed partial class BattleEngine
 
     /// <summary>Sacrifice (mirror: 0045_SacrificeScript): The user restores an ally to full
     /// HP and MP and dies in the process.</summary>
-    public BattleEvent ExecuteSacrifice(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteSacrifice(BattleUnit caster, BattleUnit target)
     {
         if (target.Has(BattleStatus.Death) || caster.Has(BattleStatus.Petrify | BattleStatus.Death))
             return Missed(caster, target);
@@ -486,7 +493,7 @@ public sealed partial class BattleEngine
     /// <summary>Six Dragons (mirror: 0050_SixDragonsScript): one roll out of a hundred
     /// picks among six outcomes — 10% full HP and MP, 20% full HP, 20% full MP, 15% HP to
     /// 1, 15% MP to 1, and the remaining 20% reduces both to 1.</summary>
-    public BattleEvent ExecuteSixDragons(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteSixDragons(BattleUnit caster, BattleUnit target)
     {
         var roll = _rng.Rand16() % 100;
         if (roll < 10)
@@ -513,7 +520,7 @@ public sealed partial class BattleEngine
     /// <summary>Curse (mirror: 0051_CurseScript): no damage, makes the target
     /// WEAK to an element and strips all defense against it, clears guard, absorb
     /// and half in one pass.</summary>
-    public BattleEvent ExecuteCurse(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteCurse(BattleUnit caster, BattleUnit target)
     {
         var element = (Element)(1 << (_rng.Rand8() % 8));
         target.WeakElements |= element;
@@ -527,7 +534,7 @@ public sealed partial class BattleEngine
 
     /// <summary>Lucky Seven (mirror: 0053_LuckySevenScript): a check on the CASTER's
     /// own HP - if it ends in a 7, one roll in four picks 7, 77, 777 or 7777.</summary>
-    public BattleEvent ExecuteLuckySeven(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteLuckySeven(BattleUnit caster, BattleUnit target)
         => FlatDamage(caster, target, caster.CurrentHP % 10 != 7 ? 1 : (_rng.Rand8() % 4) switch
         {
             0 => 7,
@@ -543,12 +550,12 @@ public sealed partial class BattleEngine
     // AbilityScript.Steal,
 
     /// <summary>Scan (mirror: 0059 → Libra): pure information.</summary>
-    public BattleEvent ExecuteScan(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteScan(BattleUnit caster, BattleUnit target)
         => Finish(caster, target, new AttackResult(AttackOutcome.Scanned, 0));
 
     /// <summary>Detect (mirror: 0060_DetectScript → SetBattlePeeping): displays the target's
     /// STEAL table, rarest first.</summary>
-    public BattleEvent ExecuteDetect(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteDetect(BattleUnit caster, BattleUnit target)
         => Finish(caster, target, new AttackResult(AttackOutcome.Detected, 0));
     
     // AbilityScript.Charge,
@@ -558,17 +565,17 @@ public sealed partial class BattleEngine
 
     /// <summary>Frog Drop (mirror: 0066_FrogDropScript): damage is every frog Quina has
     /// ever caught times the caster's level.</summary>
-    public BattleEvent ExecuteFrogDrop(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteFrogDrop(BattleUnit caster, BattleUnit target)
         => FlatDamage(caster, target, _world.Frogs == 0 ? 1 : _world.Frogs * caster.Level);
 
     /// <summary>Thievery (mirror: 0067_ThieveryScript): the save's successful steal count
     /// times the caster's Dexterity, halved.</summary>
-    public BattleEvent ExecuteThievery(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteThievery(BattleUnit caster, BattleUnit target)
         => FlatDamage(caster, target, _world.Thefts * caster.Speed / 2);
 
     /// <summary>Dragon's Crest (mirror: 0068_DragonCrestScript): damage is the SQUARE of
     /// how many dragons this save has killed.</summary>
-    public BattleEvent ExecuteDragonCrest(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteDragonCrest(BattleUnit caster, BattleUnit target)
         => FlatDamage(caster, target, _world.Kills[EnemyCategory.Dragon] * _world.Kills[EnemyCategory.Dragon]);
     
     // AbilityScript.ItemPotion,
@@ -582,8 +589,18 @@ public sealed partial class BattleEngine
     // AbilityScript.DarkMatter,
     // AbilityScript.DoubleCastSpecial,
     // AbilityScript.MassSpear,
-    // AbilityScript.Jewel,
 
+    /// <summary>Jewel (mirror: 0084_JewelScript): a magic accuracy roll that takes nothing
+    /// from anyone - a hit conjures an Ore into the bag.</summary>
+    public BattleEvent ExecuteJewel(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var outcome = MagicRoll(caster, target, ability.Rate);
+        if (outcome != AttackOutcome.Hit)
+            return Finish(caster, target, new AttackResult(outcome, 0));
+        _world.Items.Add(Ore);
+        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0)) with { ItemMoved = Ore };
+    }
+    
     /// <summary>Summon (mirror: 0085_SummonScript): ordinary magic damage whose POWER
     /// is raised by the number of that eidolon's gem in the party's inventory, or by the
     /// caster's level (for Madeen).</summary>
@@ -592,7 +609,7 @@ public sealed partial class BattleEngine
         var bonus = ability.Name == "Madeen"
             ? caster.Level
             : SummonGem.TryGetValue(ability.Name, out var gem)
-                ? ItemCounts.GetValueOrDefault(gem)
+                ? _world.Items[gem]
                 : 0;
         return ExecuteSpell(caster, target, ability with { Power = ability.Power + bonus }, divided);
     }
@@ -606,7 +623,7 @@ public sealed partial class BattleEngine
         if ((ability.Elements & target.GuardElements) != 0)
             return Finish(caster, target, new AttackResult(AttackOutcome.Guarded, 0));
 
-        var share = Math.Min(ability.Power + ItemCounts.GetValueOrDefault("Amethyst"), 100);
+        var share = Math.Min(ability.Power + _world.Items[Amethyst], 100);
         var damage = target.MaxHP * share / 100;
         target.CurrentHP = Math.Max(0, target.CurrentHP - damage);
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, damage));
@@ -620,7 +637,7 @@ public sealed partial class BattleEngine
             return Finish(caster, target, new AttackResult(AttackOutcome.Guarded, 0));
 
         var outcome = MagicRoll(caster, target, ability.Rate, shellApplies: false,
-            hitBonus: ItemCounts.GetValueOrDefault("Ore") >> 1);
+            hitBonus: _world.Items[Ore] >> 1);
         if (outcome != AttackOutcome.Hit)
             return Finish(caster, target, new AttackResult(outcome, 0));
 
@@ -632,7 +649,7 @@ public sealed partial class BattleEngine
 
     /// <summary>Melt (mirror: 0088): damage equals the caster's CURRENT HP - and then the
     /// caster dies.</summary>
-    public BattleEvent ExecuteMelt(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteMelt(BattleUnit caster, BattleUnit target)
     {
         var ev = FlatDamage(caster, target, caster.CurrentHP);
         caster.CurrentHP = 0;
@@ -641,7 +658,7 @@ public sealed partial class BattleEngine
 
     /// <summary>HP Switching (mirror: 0089): caster and target trade current HP outright,
     /// each clamped to their own maximum.</summary>
-    public BattleEvent ExecuteHPSwitch(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteHPSwitch(BattleUnit caster, BattleUnit target)
     {
         var casterHP = caster.CurrentHP;
         caster.CurrentHP = Math.Min(target.CurrentHP, caster.MaxHP);
@@ -694,7 +711,7 @@ public sealed partial class BattleEngine
 
     /// <summary>Trance (mirror: 0096_TranceFullScript): fills the target's gauge outright
     /// and puts them in Trance, refusing anyone who has no gauge to fill.</summary>
-    public BattleEvent ExecuteTranceFull(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteTranceFull(BattleUnit caster, BattleUnit target)
     {
         if (!target.HasTrance)
             return Missed(caster, target);
@@ -735,14 +752,23 @@ public sealed partial class BattleEngine
     {
         var result = PhysicalAttack.Execute(caster, target, 0, _rng,
             enemyStyle: IsEnemy(caster), element: Element.None);
-        return Finish(caster, target,
-            new AttackResult(result.Outcome == AttackOutcome.Miss ? AttackOutcome.Miss : AttackOutcome.Hit, 0));
+        if (result.Outcome == AttackOutcome.Miss)
+            return Finish(caster, target, new AttackResult(AttackOutcome.Miss, 0));
+
+        var taken = _world.Items.Remove(ability.Rate);
+        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0)) with
+        {
+            ItemMoved = taken ? ability.Rate : null
+        };
     }
 
     /// <summary>Mug (mirror: 0102): a physical hit with NO accuracy roll and no crit, it
     /// always connects, followed by an item theft.</summary>
     public BattleEvent ExecuteMug(BattleUnit caster, BattleUnit target, BattleAbility ability)
-        => ExecuteAttack(caster, target, ability.Power, ability.Elements, precise: true);
+    {
+        var ev = ExecuteAttack(caster, target, ability.Power, ability.Elements, precise: true);
+        return _world.Items.Remove(ability.Rate) ? ev with { ItemMoved = ability.Rate } : ev;
+    }
     
     /// <summary>Positive statuses (mirror: 0103 → TryAlterCommandStatuses): buffs are
     /// applied outright, with no accuracy roll and no evade.</summary>
@@ -751,14 +777,14 @@ public sealed partial class BattleEngine
 
     /// <summary>Everyone's Grudge (mirror: 0104_TonberryKarmaScript): damage doubles with
     /// every Tonberry the save has killed — 1 &lt;&lt; (count − 1), capped at a shift of 20.</summary>
-    public BattleEvent ExecuteTonberryKarma(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteTonberryKarma(BattleUnit caster, BattleUnit target)
         => FlatDamage(caster, target,
             _world.Tonberries == 0 ? 0 : 1 << Math.Min(20, _world.Tonberries - 1));
 
     /// <summary>Grand Cross (mirror: 0105) Sixteen statuses are each rolled independently at 1-in-8
     /// (<code>rand8 &gt;&gt; 5 == 0</code>); LowHP is not inflicted but reduces the target to a
     /// random 1–9 HP.</summary>
-    public BattleEvent ExecuteGrandCross(BattleUnit caster, BattleUnit target, BattleAbility _)
+    public BattleEvent ExecuteGrandCross(BattleUnit caster, BattleUnit target)
     {
         const BattleStatus roster =
             BattleStatus.Petrify | BattleStatus.Silence | BattleStatus.Blind | BattleStatus.Trouble

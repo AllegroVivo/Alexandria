@@ -71,7 +71,7 @@ public sealed class BattleUnit
     /// <summary>btl.trance, 0–TranceMax.</summary>
     public Int32 TranceGauge { get; set; }
 
-    public IReadOnlyList<String> StealItems { get; set; } = [];
+    public IReadOnlyList<Int32> StealItems { get; set; } = [];
 
     public static BattleUnit FromEnemy(String name, BattleSceneMonsterParam m) => new()
     {
@@ -98,7 +98,8 @@ public sealed class BattleUnit
         ImmuneStatuses = (BattleStatus)m.ResistStatus,
         DiesFighting = (m.Flags & 1) != 0,
         ModelID = m.Geo,
-        HasTrance = ((BattleStatus)m.ResistStatus & BattleStatus.Trance) == 0
+        HasTrance = ((BattleStatus)m.ResistStatus & BattleStatus.Trance) == 0,
+        StealItems = [..m.StealItems.Where(i=>i!=255).Select(i=>(Int32)i)]
     };
 
     public Boolean Has(BattleStatus status) => (Statuses & status) != 0;

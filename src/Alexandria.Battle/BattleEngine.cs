@@ -4,6 +4,14 @@ using Alexandria.Rules;
 
 namespace Alexandria.Battle;
 
+public sealed record BattleEvent(
+    BattleUnit Actor,
+    BattleUnit Target,
+    AttackResult Result,
+    BattleStatus StatusesAdded = 0,
+    BattleAbility? Ability = null,
+    Int32? ItemMoved = null);
+
 /// <summary>
 /// The headless battle loop: tick gauges until someone is ready, let them act, reset, repeat.
 /// Turn order is not a list - it emerges from the clock, exactly like the original.
@@ -27,10 +35,6 @@ public sealed partial class BattleEngine
     private BattleCommandID _currentCommand = BattleCommandID.EnemyAtk;
 
     private delegate BattleEvent Verb(BattleEngine e, BattleUnit actor, BattleUnit target, BattleAbility ability, Boolean divided);
-    
-    /// <summary>Standing in for the party's inventory: how many of each
-    /// item they carry, by name.</summary>
-    public Dictionary<String, Int32> ItemCounts { get; } = [];
 
     public List<BattleUnit> Players { get; }
     public List<BattleUnit> Enemies { get; }
@@ -339,9 +343,9 @@ public sealed partial class BattleEngine
         [AbilityScript.ThousandNeedles] = (e, actor, target, ability, _) => e.ExecuteThousandNeedles(actor, target, ability),
         [AbilityScript.DirectHPDamage] = (e, actor, target, ability, _) => e.ExecuteDirectHP(actor, target, ability, precise: false),
         [AbilityScript.LimitGlove] = (e, actor, target, ability, _) => e.ExecuteLimitGlove(actor, target, ability),
-        [AbilityScript.DifferentCasterHpAttack] = (e, actor, target, ability, _) => e.ExecuteMissingHPAttack(actor, target, ability),
+        [AbilityScript.DifferentCasterHpAttack] = (e, actor, target, _, _) => e.ExecuteMissingHPAttack(actor, target),
         [AbilityScript.WhiteWind] = (e, actor, target, ability, _) => e.ExecuteWhiteWind(actor, target, ability),
-        [AbilityScript.RandomMpDamage] = (e, actor, target, ability, _) => e.ExecuteRandomMPDamage(actor, target, ability),
+        [AbilityScript.RandomMpDamage] = (e, actor, target, _, _) => e.ExecuteRandomMPDamage(actor, target),
         [AbilityScript.Darkside] = (e, actor, target, ability, _) => e.ExecuteDarkside(actor, target, ability),
         [AbilityScript.ArmorBreak] = (e, actor, target, ability, _) => e.ExecuteArmorBreak(actor, target, ability),
         [AbilityScript.PowerBreak] = (e, actor, target, ability, _) => e.ExecutePowerBreak(actor, target, ability),
@@ -350,33 +354,33 @@ public sealed partial class BattleEngine
         [AbilityScript.Chakra] = (e, actor, target, ability, _) => e.ExecuteChakra(actor, target, ability),
         [AbilityScript.SpareChange] = (e, actor, target, ability, _) => e.ExecuteSpareChange(actor, target, ability),
         [AbilityScript.Lancer] = (e, actor, target, ability, _) => e.ExecuteLancer(actor, target, ability),
-        [AbilityScript.DragonBreath] = (e, actor, target, ability, _) => e.ExecuteDragonBreath(actor, target, ability),
-        [AbilityScript.WhiteDraw] = (e, actor, target, ability, _) => e.ExecuteWhiteDraw(actor, target, ability),
+        [AbilityScript.DragonBreath] = (e, actor, target, _, _) => e.ExecuteDragonBreath(actor, target),
+        [AbilityScript.WhiteDraw] = (e, actor, target, _, _) => e.ExecuteWhiteDraw(actor, target),
         // AbilityScript.Throw,
         [AbilityScript.Might] = (e, actor, target, ability, _) => e.ExecuteMight(actor, target, ability),
         // AbilityScript.Focus,
-        [AbilityScript.Sacrifice] = (e, actor, target, ability, _) => e.ExecuteSacrifice(actor, target, ability),
+        [AbilityScript.Sacrifice] = (e, actor, target, _, _) => e.ExecuteSacrifice(actor, target),
         // AbilityScript.SoulBlade,
         // AbilityScript.Spear,
         [AbilityScript.Phoenix] = (e, actor, target, ability, divided) => e.ExecutePhoenix(actor, target, ability, divided),
-        [AbilityScript.SixDragons] = (e, actor, target, ability, _) => e.ExecuteSixDragons(actor, target, ability),
-        [AbilityScript.Curse] = (e, actor, target, ability, _) => e.ExecuteCurse(actor, target, ability),
+        [AbilityScript.SixDragons] = (e, actor, target, _, _) => e.ExecuteSixDragons(actor, target),
+        [AbilityScript.Curse] = (e, actor, target, _, _) => e.ExecuteCurse(actor, target),
         // AbilityScript.AngelSnack,
-        [AbilityScript.LuckySeven] = (e, actor, target, ability, _) => e.ExecuteLuckySeven(actor, target, ability),
+        [AbilityScript.LuckySeven] = (e, actor, target, _, _) => e.ExecuteLuckySeven(actor, target),
         // AbilityScript.WhatIsThat,
         // AbilityScript.ChangeRow,
         // AbilityScript.FleeIteration,
         // AbilityScript.Flee,
         // AbilityScript.Steal,
-        [AbilityScript.Scan] = (e, actor, target, ability, _) => e.ExecuteScan(actor, target, ability),
-        [AbilityScript.Detect] = (e, actor, target, ability, _) => e.ExecuteDetect(actor, target, ability),
+        [AbilityScript.Scan] = (e, actor, target, _, _) => e.ExecuteScan(actor, target),
+        [AbilityScript.Detect] = (e, actor, target, _, _) => e.ExecuteDetect(actor, target),
         // AbilityScript.Charge,
         // AbilityScript.ItemSoft,
         // AbilityScript.MagicSwordAttack,
         // AbilityScript.Eat,
-        [AbilityScript.FrogDrop] = (e, actor, target, ability, _) => e.ExecuteFrogDrop(actor, target, ability),
-        [AbilityScript.Thievery] = (e, actor, target, ability, _) => e.ExecuteThievery(actor, target, ability),
-        [AbilityScript.DragonCrest] = (e, actor, target, ability, _) => e.ExecuteDragonCrest(actor, target, ability),
+        [AbilityScript.FrogDrop] = (e, actor, target, _, _) => e.ExecuteFrogDrop(actor, target),
+        [AbilityScript.Thievery] = (e, actor, target, _, _) => e.ExecuteThievery(actor, target),
+        [AbilityScript.DragonCrest] = (e, actor, target, _, _) => e.ExecuteDragonCrest(actor, target),
         // AbilityScript.ItemPotion,
         // AbilityScript.ItemEther,
         // AbilityScript.ItemElixir,
@@ -388,19 +392,19 @@ public sealed partial class BattleEngine
         // AbilityScript.DarkMatter,
         // AbilityScript.DoubleCastSpecial,
         // AbilityScript.MassSpear,
-        // AbilityScript.Jewel,
+        [AbilityScript.Jewel] = (e, actor, target, ability, _) => e.ExecuteJewel(actor, target, ability),
         [AbilityScript.Summon] = (e, actor, target, ability, divided) => e.ExecuteSummon(actor, target, ability, divided),
         [AbilityScript.Atomos] = (e, actor, target, ability, _) => e.ExecuteAtomos(actor, target, ability),
         [AbilityScript.Odin] = (e, actor, target, ability, _) => e.ExecuteOdin(actor, target, ability),
-        [AbilityScript.Melt] = (e, actor, target, ability, _) => e.ExecuteMelt(actor, target, ability),
-        [AbilityScript.HPSwitching] = (e, actor, target, ability, _) => e.ExecuteHPSwitch(actor, target, ability),
+        [AbilityScript.Melt] = (e, actor, target, _, _) => e.ExecuteMelt(actor, target),
+        [AbilityScript.HPSwitching] = (e, actor, target, _, _) => e.ExecuteHPSwitch(actor, target),
         // AbilityScript.HalfDefence,
         [AbilityScript.Cannon] = (e, actor, target, ability, divided) => e.ExecuteCannon(actor, target, ability, divided),
         // AbilityScript.ItemAdd,
         [AbilityScript.Maelstrom] = (e, actor, target, ability, _) => e.ExecuteMaelstrom(actor, target, ability),
         [AbilityScript.AbsorbMagic] = (e, actor, target, _, _) => e.ExecuteAbsorbStat(actor, target, magic: false),
         [AbilityScript.AbsorbStrength] = (e, actor, target, _, _) => e.ExecuteAbsorbStat(actor, target, magic: true),
-        [AbilityScript.TranceFull] = (e, actor, target, ability, _) => e.ExecuteTranceFull(actor, target, ability),
+        [AbilityScript.TranceFull] = (e, actor, target, _, _) => e.ExecuteTranceFull(actor, target),
         [AbilityScript.Entice] = (e, actor, target, ability, _) => e.ExecuteEntice(actor, target, ability),
         [AbilityScript.SimpleAttackGaia] = (e, actor, target, ability, _) => e.ExecuteSimpleAttackGaia(actor, target, ability),
         [AbilityScript.FlareStar] = (e, actor, target, ability, divided) => e.ExecuteFlareStar(actor, target, ability, divided),
@@ -408,18 +412,11 @@ public sealed partial class BattleEngine
         [AbilityScript.EnemySteal] = (e, actor, target, ability, _) => e.ExecuteSteal(actor, target, ability),
         [AbilityScript.EnemyMug] = (e, actor, target, ability, _) => e.ExecuteMug(actor, target, ability),
         [AbilityScript.MagicApplyPositiveStatus] = (e, actor, target, ability, _) => e.ExecuteBuff(actor, target, ability),
-        [AbilityScript.TonberryKarma] = (e, actor, target, ability, _) => e.ExecuteTonberryKarma(actor, target, ability),
-        [AbilityScript.GrandCross] = (e, actor, target, ability, _) => e.ExecuteGrandCross(actor, target, ability),
+        [AbilityScript.TonberryKarma] = (e, actor, target, _, _) => e.ExecuteTonberryKarma(actor, target),
+        [AbilityScript.GrandCross] = (e, actor, target, _, _) => e.ExecuteGrandCross(actor, target),
         // AbilityScript.Swallow,
         // AbilityScript.PreciseEnemyPhysicalAttackAndChangeRow,
         [AbilityScript.IaiStrike] = (e, actor, target, ability, divided) => e.ExecuteIaiStrike(actor, target, ability, divided),
         [AbilityScript.Mini] = (e, actor, target, ability, divided) => e.ExecuteMini(actor, target, ability, divided)
     }.ToFrozenDictionary();
 }
-
-public sealed record BattleEvent(
-    BattleUnit Actor,
-    BattleUnit Target,
-    AttackResult Result,
-    BattleStatus StatusesAdded = 0,
-    BattleAbility? Ability = null);

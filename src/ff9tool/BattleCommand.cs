@@ -56,12 +56,6 @@ public static class BattleCommand
             {
                 var type = put.TypeNumber;
                 var unit = BattleUnit.FromEnemy(labels[line], scene.Monsters[type]);
-                unit.StealItems =
-                [
-                    .. scene.Monsters[type].StealItems
-                        .Where(i => i != 255)
-                        .Select(i => itemNames.GetValueOrDefault(i, $"item {i}"))
-                ];
                 unit.AttackPower = scene.Attacks[names[type].DefaultAttack].Power;
                 unit.Abilities.AddRange(rosters[type].Where(n => n < scene.Attacks.Count).Select(n =>
                 {
@@ -132,11 +126,19 @@ public static class BattleCommand
                 s => new StatusTiming(s.OprCount, s.ContiCount,
                     (BattleStatus)s.ClearOnApply, (BattleStatus)s.ImmunityProvided));
 
+        foreach (var item in db.InitialItems)
+            world.Items.Add(item.ID, item.Count);
+
+        var idByName = itemNames.ToDictionary(p => p.Value, p => p.Key);
+        foreach (var name in new[]
+                 {
+                     "Opal", "Topaz", "Peridot", "Aquamarine",
+                     "Garnet", "Lapis Lazuli", "Sapphire", "Amethyst", "Ore"
+                 })
+            world.Items.Add(idByName[name], 20);
+
         var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng,
             statusTable: statusTable, host: host, director: director, world: world);
-
-        foreach (var gem in new[] { "Opal", "Topaz", "Peridot", "Aquamarine", "Garnet", "Lapis Lazuli", "Sapphire" })
-            engine.ItemCounts[gem] = 20;
         
         while (engine.TickUntilReady() is { } ready)
         {
@@ -148,7 +150,7 @@ public static class BattleCommand
             
             if (engine.IsEnemy(ready))
             {
-                Narrate(engine.ExecuteEnemyTurn(ready));
+                Narrate(engine.ExecuteEnemyTurn(ready), itemNames);
                 foreach (var id in host.PendingDialogs)
                     Console.WriteLine($"  『{(battleText is not null && id < battleText.Count ? battleText[id] : $"battle text {id}")}』");
                 host.PendingDialogs.Clear();
@@ -157,17 +159,17 @@ public static class BattleCommand
                 host.PendingSpecials.Clear();
             }
             else
-                Narrate(TakePlayerTurn(db, engine, ready, spellbook));
+                Narrate(TakePlayerTurn(db, engine, ready, spellbook), itemNames);
             
             foreach (var reaction in engine.PendingReactions)
             {
                 Console.WriteLine("  — counterattack! —");
-                Narrate(reaction);
+                Narrate(reaction, itemNames);
             }
             engine.PendingReactions.Clear();
 
             foreach (var hit in engine.PendingMultiHits)
-                Narrate(hit);
+                Narrate(hit, itemNames);
             engine.PendingMultiHits.Clear();
 
             NarrateTrance(engine, tranced);
@@ -211,7 +213,7 @@ public static class BattleCommand
         };
     }
 
-    private static void Narrate(BattleEvent e)
+    private static void Narrate(BattleEvent e, IReadOnlyDictionary<Int32, String> itemNames)
     {
         if (e.Ability is not null)
             Console.WriteLine($"{e.Actor.Name} {(Spells.Contains(e.Ability.Script) ? "casts" : "uses")} {e.Ability.Name}!");
@@ -240,11 +242,14 @@ public static class BattleCommand
                 $"{e.Target.Name} is carrying: " +
                 (e.Target.StealItems.Count == 0
                     ? "nothing"
-                    : String.Join(", ", e.Target.StealItems.AsEnumerable().Reverse())),
+                    : String.Join(", ", e.Target.StealItems.AsEnumerable().Reverse()
+                        .Select(i => itemNames.GetValueOrDefault(i, $"item {i}")))),
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
         if (e.StatusesAdded != 0 && e.Result.Damage > 0)
             line += $"  {e.Target.Name} is afflicted with {e.StatusesAdded}!";
+        if (e.ItemMoved is { } moved)
+            line += $"  — {itemNames.GetValueOrDefault(moved, $"item {moved}")}!";
         Console.WriteLine(line + (e.Target.IsAlive ? "" : $"  {e.Target.Name} falls!"));
     }
 

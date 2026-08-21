@@ -8,7 +8,8 @@ public sealed class WorldState
     
     public Int32 Frogs { get; set; }
     public KillCounts Kills { get; } = new();
-    
+
+    public Inventory Items { get; } = new();
     
     public Int32 Gil
     {

@@ -12,7 +12,8 @@ public sealed record RulesDB(
     IReadOnlyDictionary<Int32, StatusSet> StatusSets,
     IReadOnlyDictionary<String, IReadOnlyList<LearnableAbility>> Learnables,
     IReadOnlyDictionary<Int32, StatusEntry> StatusData,
-    IReadOnlyDictionary<Int32, CharacterParameter> Parameters)
+    IReadOnlyDictionary<Int32, CharacterParameter> Parameters,
+    IReadOnlyList<InitialItem> InitialItems)
 {
     public static RulesDB Load(String dataRoot)
     {
@@ -24,7 +25,7 @@ public sealed record RulesDB(
                 var path = Path.Combine(dataRoot, @"Characters\Abilities", $"{c.Name}.csv");
                 return File.Exists(path)  // covers roster members like Cinna who have no Abilities file.
                     ? CharacterAbilities.Load(path)
-                    : Array.Empty<LearnableAbility>();
+                    : [];
             });
         return new RulesDB(
             baseStats,
@@ -38,7 +39,8 @@ public sealed record RulesDB(
             StatusSet.Load(Path.Combine(dataRoot, @"Battle\StatusSets.csv")),
             learnables,
             StatusEntry.Load(Path.Combine(dataRoot, @"Battle\StatusData.csv")),
-            CharacterParameter.Load(Path.Combine(dataRoot, @"Characters\CharacterParameters.csv")));
+            CharacterParameter.Load(Path.Combine(dataRoot, @"Characters\CharacterParameters.csv")),
+            InitialItem.Load(Path.Combine(dataRoot, @"Items\InitialItems.csv")));
     }
 }
 
