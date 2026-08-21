@@ -5,6 +5,10 @@ namespace Alexandria.Battle;
 
 public sealed partial class BattleEngine
 {
+    /// <summary>Every restorative item uses a fixed Attack of 15 against zero defense,
+    /// the amount is simply `power × 15` (mirror: CalcHpMagicRecovery — AttackPower × Attack).</summary>
+    private const Int32 ItemAttack = 15;
+    
     /// <summary>Which gem feeds which eidolon (mirror: 0085_SummonScript's switch).
     /// Madeen has none - it scales with the caster's level instead.</summary>
     private static readonly Dictionary<String, ItemID> SummonGem = new()
@@ -528,7 +532,17 @@ public sealed partial class BattleEngine
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0));
     }
 
-    // AbilityScript.AngelSnack,
+    /// <summary>Angel's Snack (mirror: 0052_AngelSnackScript): uses a remedy on the target
+    /// and pays for it, the item being the ability's Power field.</summary>
+    public BattleEvent ExecuteAngelSnack(BattleUnit caster, BattleUnit target, BattleAbility ability, Boolean divided)
+    {
+        var item = (ItemID)ability.Power;
+        if (_world.Items[item] == 0 || !_itemEffects.TryGetValue(item, out var effect))
+            return Missed(caster, target);
+
+        _world.Items.Remove(item);
+        return ResolveOne(caster, target, ability, divided) with { Ability = ability, ItemMoved = item };
+    }
 
     /// <summary>Lucky Seven (mirror: 0053_LuckySevenScript): a check on the CASTER's
     /// own HP - if it ends in a 7, one roll in four picks 7, 77, 777 or 7777.</summary>
@@ -557,7 +571,18 @@ public sealed partial class BattleEngine
         => Finish(caster, target, new AttackResult(AttackOutcome.Detected, 0));
 
     // AbilityScript.Charge,
-    // AbilityScript.ItemSoft,
+
+    /// <summary>Soft (mirror: 0062_ItemSoftScript): cures Petrify and/or reduces the HP
+    /// of any creature made of stone to 0.</summary>
+    public BattleEvent ExecuteItemSoft(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        if ((target.Category & EnemyCategory.Stone) == 0)
+            return ExecuteCure(caster, target, ability);
+        caster.CurrentHP = 0;
+        StatusApplication.Apply(target, BattleStatus.Death, _statusTable);
+        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0));
+    }
+    
     // AbilityScript.MagicSwordAttack,
     // AbilityScript.Eat,
 
@@ -576,15 +601,83 @@ public sealed partial class BattleEngine
     public BattleEvent ExecuteDragonCrest(BattleUnit caster, BattleUnit target)
         => FlatDamage(caster, target, _world.Kills[EnemyCategory.Dragon] * _world.Kills[EnemyCategory.Dragon]);
 
-    // AbilityScript.ItemPotion,
-    // AbilityScript.ItemEther,
-    // AbilityScript.ItemElixir,
-    // AbilityScript.ItemPhoenix,
+    /// <summary>Potion / Hi-Potion (mirror: 0069): HP back, then the item's own statuses
+    /// rolled against its rate - which is 0, so they never land anything.</summary>
+    public BattleEvent ExecuteItemPotion(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var healed = 0;
+        if(ability.Power>0)
+        {
+            healed = Math.Min(ability.Power * ItemAttack, target.MaxHP - target.CurrentHP);
+            target.CurrentHP += healed;
+        }
+        var landed = ability.StatusMask != 0 && _rng.Rand16() % 100 < ability.Rate
+            ? StatusApplication.Apply(target, ability.StatusMask, _statusTable)
+            : 0;
+        return Finish(caster, target, new AttackResult(AttackOutcome.Healed, healed), landed);
+    }
+
+    /// <summary>Ether (mirror: 0070): `power × 15`, into MP.</summary>
+    public BattleEvent ExecuteItemEther(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var restored = Math.Min(ability.Power * ItemAttack, target.MaxMP - target.CurrentMP);
+        target.CurrentMP += restored;
+        return Finish(caster, target, new AttackResult(AttackOutcome.Healed, restored));
+    }
+
+    /// <summary>Elixir (mirror: 0071): fully fills target's HP and MP.</summary>
+    public BattleEvent ExecuteItemElixir(BattleUnit caster, BattleUnit target)
+    {
+        var healed = target.MaxHP - target.CurrentHP;
+        target.CurrentHP = target.MaxHP;
+        target.CurrentMP = target.MaxMP;
+        return Finish(caster, target, new AttackResult(AttackOutcome.Healed, healed));
+    }
+
+    /// <summary>Phoenix Down / Pinion (mirror: 0072): a fallen ally returns on 1–10 HP.</summary>
+    public BattleEvent ExecuteItemPhoenix(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        if (target.IsAlive)
+            return Missed(caster, target);
+        target.CurrentHP = 1 + _rng.Rand8() % 10;
+        StatusApplication.Remove(target, ability.StatusMask | BattleStatus.Death);
+        return Finish(caster, target, new AttackResult(AttackOutcome.Healed, target.CurrentHP));
+    }
+    
     // AbilityScript.ItemCureStatus,
-    // AbilityScript.ItemGem,
-    // AbilityScript.DeadPepper,
-    // AbilityScript.Tent,
-    // AbilityScript.DarkMatter,
+
+    /// <summary>Gems used as items (mirror: 0074): healing of `power × (how many you still
+    /// hold + 1)`.</summary>
+    public BattleEvent ExecuteItemGem(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var healed = Math.Min(ability.Power * (_world.Items[(ItemID)ability.ID] + 1), target.MaxHP - target.CurrentHP);
+        target.CurrentHP += healed;
+        return Finish(caster, target, new AttackResult(AttackOutcome.Healed, healed));
+    }
+
+    /// <summary>Dead Pepper (mirror: 0075): damage of `power × (held + 1)`.</summary>
+    public BattleEvent ExecuteDeadPepper(BattleUnit caster, BattleUnit target, BattleAbility ability)
+        => FlatDamage(caster, target, ability.Power * (_world.Items[(ItemID)ability.ID] + 1));
+
+    /// <summary>Tent (mirror: 0076): restore half of HP and MP. Also performs a
+    /// coin-flip for a chance of being "Bitten" and taking the item's statuses
+    /// instead.</summary>
+    public BattleEvent ExecuteTent(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        var healed = Math.Min(target.MaxHP >> 1, target.MaxHP - target.CurrentHP);
+        target.CurrentHP += healed;
+        target.CurrentMP = Math.Min(target.MaxMP, target.CurrentMP + (target.MaxMP >> 1));
+
+        var landed = ability.Rate < _rng.Rand16() % 100
+            ? StatusApplication.Apply(target, ability.StatusMask, _statusTable)
+            : 0;
+        return Finish(caster, target, new AttackResult(AttackOutcome.Healed, healed), landed);
+    }
+
+    /// <summary>Dark Matter (mirror: 0077): flat damage of 9,999.</summary>
+    public BattleEvent ExecuteDarkMatter(BattleUnit caster, BattleUnit target)
+        => FlatDamage(caster, target, MagicAttack.DamageCap);
+    
     // AbilityScript.DoubleCastSpecial,
     // AbilityScript.MassSpear,
 

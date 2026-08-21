@@ -36,6 +36,8 @@ public sealed partial class BattleEngine
 
     private delegate BattleEvent Verb(BattleEngine e, BattleUnit actor, BattleUnit target, BattleAbility ability, Boolean divided);
 
+    private readonly IReadOnlyDictionary<ItemID, BattleAbility> _itemEffects;
+
     public List<BattleUnit> Players { get; }
     public List<BattleUnit> Enemies { get; }
 
@@ -51,7 +53,7 @@ public sealed partial class BattleEngine
     public BattleEngine(List<BattleUnit> players, List<BattleUnit> enemies,
         EncounterKind kind, Random rng, Int32 coefficient = ATBClock.NormalCoefficient,
         IReadOnlyDictionary<BattleStatus, StatusTiming>? statusTable = null, EngineHost? host = null,
-        EbVM? director = null, WorldState? world = null)
+        EbVM? director = null, WorldState? world = null, IReadOnlyDictionary<ItemID, BattleAbility>? itemEffects = null)
     {
         Players = players;
         Enemies = enemies;
@@ -61,6 +63,7 @@ public sealed partial class BattleEngine
         _host = host;
         _director = director;
         _world = world ?? new WorldState();
+        _itemEffects = itemEffects ?? new Dictionary<ItemID, BattleAbility>();
         ATBClock.PlaceInitialGauges(players, enemies, kind, rng);
     }
 
@@ -365,7 +368,7 @@ public sealed partial class BattleEngine
         [AbilityScript.Phoenix] = (e, actor, target, ability, divided) => e.ExecutePhoenix(actor, target, ability, divided),
         [AbilityScript.SixDragons] = (e, actor, target, _, _) => e.ExecuteSixDragons(actor, target),
         [AbilityScript.Curse] = (e, actor, target, _, _) => e.ExecuteCurse(actor, target),
-        // AbilityScript.AngelSnack,
+        [AbilityScript.AngelSnack] = (e, actor, target, ability, divided) => e.ExecuteAngelSnack(actor, target, ability, divided),
         [AbilityScript.LuckySeven] = (e, actor, target, _, _) => e.ExecuteLuckySeven(actor, target),
         // AbilityScript.WhatIsThat,
         // AbilityScript.ChangeRow,
@@ -375,21 +378,21 @@ public sealed partial class BattleEngine
         [AbilityScript.Scan] = (e, actor, target, _, _) => e.ExecuteScan(actor, target),
         [AbilityScript.Detect] = (e, actor, target, _, _) => e.ExecuteDetect(actor, target),
         // AbilityScript.Charge,
-        // AbilityScript.ItemSoft,
+        [AbilityScript.ItemSoft] = (e, actor, target, ability, _) => e.ExecuteItemSoft(actor, target, ability),
         // AbilityScript.MagicSwordAttack,
         // AbilityScript.Eat,
         [AbilityScript.FrogDrop] = (e, actor, target, _, _) => e.ExecuteFrogDrop(actor, target),
         [AbilityScript.Thievery] = (e, actor, target, _, _) => e.ExecuteThievery(actor, target),
         [AbilityScript.DragonCrest] = (e, actor, target, _, _) => e.ExecuteDragonCrest(actor, target),
-        // AbilityScript.ItemPotion,
-        // AbilityScript.ItemEther,
-        // AbilityScript.ItemElixir,
-        // AbilityScript.ItemPhoenix,
-        // AbilityScript.ItemCureStatus,
-        // AbilityScript.ItemGem,
-        // AbilityScript.DeadPepper,
-        // AbilityScript.Tent,
-        // AbilityScript.DarkMatter,
+        [AbilityScript.ItemPotion] = (e, actor, target, ability, _) => e.ExecuteItemPotion(actor, target, ability),
+        [AbilityScript.ItemEther] = (e, actor, target, ability, _) => e.ExecuteItemEther(actor, target, ability),
+        [AbilityScript.ItemElixir] = (e, actor, target, _, _) => e.ExecuteItemElixir(actor, target),
+        [AbilityScript.ItemPhoenix] = (e, actor, target, ability, _) => e.ExecuteItemPhoenix(actor, target, ability),
+        [AbilityScript.ItemCureStatus] = (e, actor, target, ability, _) => e.ExecuteCure(actor, target, ability),
+        [AbilityScript.ItemGem] = (e, actor, target, ability, _) => e.ExecuteItemGem(actor, target, ability),
+        [AbilityScript.DeadPepper] = (e, actor, target, ability, _) => e.ExecuteDeadPepper(actor, target, ability),
+        [AbilityScript.Tent] = (e, actor, target, ability, _) => e.ExecuteTent(actor, target, ability),
+        [AbilityScript.DarkMatter] = (e, actor, target, _, _) => e.ExecuteDarkMatter(actor, target),
         // AbilityScript.DoubleCastSpecial,
         // AbilityScript.MassSpear,
         [AbilityScript.Jewel] = (e, actor, target, ability, _) => e.ExecuteJewel(actor, target, ability),

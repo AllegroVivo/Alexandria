@@ -18,6 +18,7 @@ public sealed record Item(
     Int32 ArmorID,
     UInt32 Price,
     Int32 BonusID,
+    Int32 EffectID,
     IReadOnlyList<AbilityRef> TaughtAbilities,
     EquipSlot? Slot = null,
     IReadOnlySet<String>? Wearers = null)
@@ -30,6 +31,7 @@ public sealed record Item(
                 Int32.Parse(f[2]),
                 UInt32.Parse(f[4]),
                 Int32.Parse(f[9]),
+                Int32.Parse(f[3]),
                 AbilityRef.ParseArray(f[10]),
                 ReadSlot(f),
                 ReadWearers(f)))

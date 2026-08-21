@@ -136,8 +136,20 @@ public static class BattleCommand
                  })
             world.Items.Add(id, 20);
 
+        var itemEffects = db.Items.Values
+            .Where(i => db.ItemEffects.ContainsKey(i.EffectID))
+            .ToDictionary(i => (ItemID)i.ID, i =>
+            {
+                var fx = db.ItemEffects[i.EffectID];
+                return new BattleAbility(
+                    itemNames.GetValueOrDefault(i.ID, $"item {i.ID}"),
+                    fx.Script, fx.Power, (Element)fx.Elements, fx.Rate,
+                    (BattleStatus)fx.Status, 0, i.ID, fx.TargetType, fx.ForDead);
+            });
+
         var engine = new BattleEngine(party, enemies, EncounterKind.Normal, rng,
-            statusTable: statusTable, host: host, director: director, world: world);
+            statusTable: statusTable, host: host, director: director, world: world,
+            itemEffects: itemEffects);
         
         while (engine.TickUntilReady() is { } ready)
         {
