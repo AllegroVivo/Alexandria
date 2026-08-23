@@ -588,7 +588,7 @@ public sealed partial class BattleEngine
     /// <summary>Flee (mirror: 0057_FleeScript): the party runs.</summary>
     public BattleEvent ExecuteFlee(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
-        if (!CanRunAway || !Players.Any(p => p.IsAlive && !p.Has(BattleStatus.CannotEscape)))
+        if (!CanRunAway || !Players.Any(p => p.IsFighting && !p.Has(BattleStatus.CannotEscape)))
             return Missed(caster, target);
 
         var purse = Enemies.Sum(e => e.BonusGil) + (_host?.GilEarned ?? 0);
@@ -613,9 +613,9 @@ public sealed partial class BattleEngine
     public BattleEvent ExecuteCharge(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
         var rallied = Players
-            .Where(p => p.IsAlive && p.CurrentHP * 6 <= p.MaxHP && !p.Has(BattleStatus.NoInput))
+            .Where(p => p.IsFighting && p.CurrentHP * 6 <= p.MaxHP && !p.Has(BattleStatus.NoInput))
             .ToList();
-        var living = Enemies.Where(e => e.IsAlive).ToList();
+        var living = Enemies.Where(e => e.IsFighting).ToList();
         if (rallied.Count == 0 || living.Count == 0)
             return Missed(caster, target);
 
@@ -966,7 +966,14 @@ public sealed partial class BattleEngine
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), landed);
     }
 
-    // AbilityScript.Swallow,
+    /// <summary>Swallow / Snort (mirror: 0106_SwallowScript, which is the single line
+    /// `Target.Remove()`): the target is taken OUT of the battle without being killed.</summary>
+    public BattleEvent ExecuteSwallow(BattleUnit caster, BattleUnit target)
+    {
+        target.IsRemoved = true;
+        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0));
+    }
+    
     // AbilityScript.PreciseEnemyPhysicalAttackAndChangeRow,
 
     /// <summary>Iai Strike (mirror: 0108_IaiStrikeScript): an accuracy roll landing Death</summary>

@@ -73,8 +73,8 @@ public sealed partial class BattleEngine
         ATBClock.PlaceInitialGauges(players, enemies, kind, rng);
     }
 
-    public Boolean Victory => Enemies.All(e => !e.IsAlive);
-    public Boolean Defeat => Players.All(p => !p.IsAlive);
+    public Boolean Victory => Enemies.All(e => !e.IsFighting);
+    public Boolean Defeat => Players.All(p => !p.IsFighting);
     public Boolean IsOver => Victory || Defeat || Escaped || _host?.Result is not null;
 
     public static Boolean CanResolve(AbilityScript script) => Verbs.ContainsKey(script);
@@ -86,7 +86,7 @@ public sealed partial class BattleEngine
     {
         while (!IsOver)
         {
-            var ready = AllUnits.FirstOrDefault(u => u is { IsAlive: true, ATBReady: true }
+            var ready = AllUnits.FirstOrDefault(u => u is { IsFighting: true, ATBReady: true }
                                                      && !u.Has(BattleStatus.PreventATBConfirm | BattleStatus.Stop | BattleStatus.Petrify));
             if (ready is not null)
                 return ready;
@@ -151,7 +151,7 @@ public sealed partial class BattleEngine
             && enemy.Abilities.FirstOrDefault(a => a.ID == attackId) is { } scripted)
             return Resolve(enemy, chosen, scripted, brain?.LastTargetMask ?? 0);
 
-        var living = Players.Where(p => p.IsAlive).ToList();
+        var living = Players.Where(p => p.IsFighting).ToList();
         var target = living[_rng.Rand16() % living.Count];
 
         var usable = enemy.Abilities.Where(a => a.MP <= enemy.CurrentMP).ToList();
@@ -192,9 +192,11 @@ public sealed partial class BattleEngine
             if (brain.React(tag, 1 << Players.IndexOf(attacker), (Int32)_currentCommand, 0) is not { } attackId ||
                 target.Abilities.FirstOrDefault(a => a.ID == attackId) is not { } retaliation)
                 return;
+            var gauge = target.ATBGauge;
             var mask = _host?.SysList(0) ?? 0;
             var chosen = _host?.UnitFromMask(mask) ?? attacker;
             PendingReactions.Add(Resolve(target, chosen, retaliation, mask));
+            target.ATBGauge = gauge;
         }
         finally
         {
@@ -202,18 +204,16 @@ public sealed partial class BattleEngine
         }
     }
 
-    /// <summary>Mirror: BattleCaster.EnemyTranceBonusAttack - an ENEMY acting in Trance
-    /// deals +50%.</summary>
+    /// <summary>Mirror: BattleCaster.EnemyTranceBonusAttack - an ENEMY acting in Trance.</summary>
     private Int32 TranceBonus(BattleUnit actor) => IsEnemy(actor) && actor.Has(BattleStatus.Trance) ? 1 : 0;
 
     /// <summary>Mirror: SBattleCalculator.CheckDamageReaction - being acted on by the
-    /// OTHER side raises the gauge by `rand16 % Spirit`, and topping it out is what puts
-    /// the unit into Trance.</summary>
+    /// OTHER side raises the gauge by `rand16 % Spirit`.</summary>
     private void FillTrance(BattleUnit caster, BattleUnit target, AttackResult result)
     {
         if (result.Outcome is not (AttackOutcome.Hit or AttackOutcome.CriticalHit) || result.Damage <= 0)
             return;
-        if (IsEnemy(caster) == IsEnemy(target) || !target.HasTrance || !target.IsAlive)
+        if (IsEnemy(caster) == IsEnemy(target) || !target.HasTrance || !target.IsFighting)
             return;
         if (target.Has(BattleStatus.CannotTrance) || target.Spirit <= 0)
             return;
@@ -263,31 +263,23 @@ public sealed partial class BattleEngine
             if ((mask >> line & 1) != 0 && _host?.UnitFromMask(1 << line) is { } unit)
                 named.Add(unit);
 
-        var usable = named.Where(u => forDead || u.IsAlive).ToList();
+        var usable = named.Where(u => u.IsAlive || !u.IsRemoved).ToList();
         if (usable.Count > 0)
             return usable;
         if (forDead)
             return [fallback]; // a revive keeps the fallen ally it was aimed at
         return Revalidate(fallback) is { } one ? [one] : [];
     }
-
-    /// <summary>Mirror: btl_cmd.CheckTargetCondition (:1209-1259). A script may legally
-    /// name a dead target — GetBattleID carries no alive filter — so the engine revalidates
-    /// just before the command runs: a fallen target is replaced by a random living unit
-    /// from the same side, and only when that whole side is down does the action lapse.
-    /// Divergence: vanilla's ForDead abilities (revive) may keep a dead player as their
-    /// target.</summary>
+    
     private BattleUnit? Revalidate(BattleUnit target)
     {
         if (target.IsAlive)
             return target;
-        var side = (IsEnemy(target) ? Enemies : Players).Where(u => u.IsAlive).ToList();
+        var side = (IsEnemy(target) ? Enemies : Players).Where(u => u.IsFighting).ToList();
         return side.Count == 0 ? null : side[_rng.Rand16() % side.Count];
     }
 
-    /// <summary>Resolve an enemy attack through its ability-script id, the way vanilla
-    /// dispatches via ScriptsLoader.GetBattleScript — ids we implement do their work,
-    /// and an id with no script resolves to nothing.</summary>
+    /// <summary>Resolve an enemy attack through its ability-script id.</summary>
     private BattleEvent Resolve(BattleUnit actor, BattleUnit target, BattleAbility ability, Int32 targetMask = 0)
     {
         var targets = ExpandTargets(targetMask, target, ability.ForDead);
@@ -302,9 +294,7 @@ public sealed partial class BattleEngine
         _currentCommand = IsEnemy(actor) ? BattleCommandID.EnemyAtk
             : ability.Script == AbilityScript.EnemyPhysicalAttack ? BattleCommandID.Attack
             : BattleCommandID.BlackMagic;
-
-        // mirror: BattleCommand.IsDevided - only the "Many" target types pay the spread penalty; an
-        // inherently party-wide attack lands at full strength
+        
         var divided = targets.Count > 1 && ability.TargetType is >= 3 and <= 5;
 
         var first = ResolveOne(actor, targets[0], ability, divided);
@@ -423,7 +413,7 @@ public sealed partial class BattleEngine
         [AbilityScript.MagicApplyPositiveStatus] = (e, actor, target, ability, _) => e.ExecuteBuff(actor, target, ability),
         [AbilityScript.TonberryKarma] = (e, actor, target, _, _) => e.ExecuteTonberryKarma(actor, target),
         [AbilityScript.GrandCross] = (e, actor, target, _, _) => e.ExecuteGrandCross(actor, target),
-        // AbilityScript.Swallow,
+        [AbilityScript.Swallow] = (e, actor, target, _, _) => e.ExecuteSwallow(actor, target),
         // AbilityScript.PreciseEnemyPhysicalAttackAndChangeRow,
         [AbilityScript.IaiStrike] = (e, actor, target, ability, divided) => e.ExecuteIaiStrike(actor, target, ability, divided),
         [AbilityScript.Mini] = (e, actor, target, ability, divided) => e.ExecuteMini(actor, target, ability, divided)

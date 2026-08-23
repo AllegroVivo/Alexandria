@@ -1,3 +1,5 @@
+using Alexandria.Rules;
+
 namespace Alexandria.Battle;
 
 public enum AttackOutcome
@@ -77,6 +79,10 @@ public static class PhysicalAttack
         }
         if (target.TurnedAway)
             modifiers += 1;
+        if (Math.Abs(attacker.Row - target.Row) > 1
+            && (attacker.WeaponCategory & WeaponCategory.LongRange) == 0
+            && (enemyStyle || (attacker.WeaponCategory & WeaponCategory.ShortRange) != 0))
+            modifiers -= 1;
         if ((element & target.HalfElements) != 0)
             modifiers -= 1;
         if ((element & target.WeakElements) != 0)

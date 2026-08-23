@@ -35,11 +35,17 @@ public sealed class BattleUnit
 
     public Boolean IsAlive => CurrentHP > 0;
     
+    /// <summary>Taken out of the battle without being killed (mirror: BattleUnit.Remove).
+    /// A removed unit leaves alive, but earns nothing from the fight.</summary>
+    public Boolean IsRemoved { get; set; }
+
+    public Boolean IsFighting => IsAlive && !IsRemoved;
+    
     /// <summary>ENEMY.FLG_DIE_ATK (bit 0 of SB2 Flags): this enemy runs a death
     /// script (tag 9) when killed — the boss "death scene" flag.</summary>
     public Boolean DiesFighting { get; set; }
 
-    /// <summary>Vanilla gauge size: fast units have SHORTER gauges (btl_para.GetMaxATB, /4).</summary>
+    /// <summary>Fast units have SHORTER gauges (btl_para.GetMaxATB, /4).</summary>
     public Int32 ATBMax => (60 - Speed) * 40;
 
     public Boolean ATBReady => ATBGauge >= ATBMax;
@@ -74,6 +80,7 @@ public sealed class BattleUnit
     public IReadOnlyList<ItemID> StealItems { get; set; } = [];
     public ItemID Weapon { get; set; } = ItemID.NoItem;
     public BattleStatus WeaponStatus { get; set; }
+    public WeaponCategory WeaponCategory { get; set; }
     
     public Int32 BonusGil { get; set; }
     

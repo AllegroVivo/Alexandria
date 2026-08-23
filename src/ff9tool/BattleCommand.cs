@@ -228,7 +228,8 @@ public static class BattleCommand
             PlayerCategory = db.Parameters[baseStats.ID].Category,
             HasTrance = (db.Parameters[baseStats.ID].Category & CharacterCategory.SubPC) == 0,
             Weapon = kit.WeaponItem, WeaponStatus = (BattleStatus)db.StatusSets[kit.WeaponStatusIndex].StatusMask,
-            Row = db.Parameters[baseStats.ID].DefaultRow, DefaultRow = db.Parameters[baseStats.ID].DefaultRow
+            Row = db.Parameters[baseStats.ID].DefaultRow, DefaultRow = db.Parameters[baseStats.ID].DefaultRow,
+            WeaponCategory = kit.WeaponCategory
         };
     }
 
@@ -244,6 +245,7 @@ public static class BattleCommand
             AttackOutcome.CriticalHit => $"{e.Actor.Name} lands a CRITICAL on {e.Target.Name} for {e.Result.Damage}!",
             AttackOutcome.Guarded => $"{e.Target.Name} nulls it — no effect!",
             AttackOutcome.Absorbed => $"{e.Target.Name} drinks it in — absorbs {e.Result.Damage} HP!",
+            AttackOutcome.Hit when e.Target.IsRemoved => $"{e.Target.Name} is gone!",
             AttackOutcome.Hit when e.Result.Damage == 0 && e.StatusesAdded != 0 => $"{e.Target.Name} is now {e.StatusesAdded}.",
             AttackOutcome.Hit when e.Result.Damage == 0 => $"{e.Target.Name} is unaffected.",
             AttackOutcome.NoEffect when e.Ability is { } a && !Enum.IsDefined(a.Script)
