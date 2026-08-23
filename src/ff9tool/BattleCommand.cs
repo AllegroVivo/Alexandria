@@ -1,3 +1,4 @@
+using System.Data;
 using Alexandria.Battle;
 using Alexandria.Formats;
 using Alexandria.Formats.Memoria;
@@ -101,17 +102,19 @@ public static class BattleCommand
                 var entryIndex = line < host.SpawnedEntries.Count ? host.SpawnedEntries[line] : line + 1;
                 enemies[line].Brain = new ScriptedBrain(script.Entries[entryIndex], host, selfLine: 4 + line, state);
             }
-            
+
             director.Request(1, 7);
         }
 
         var battleText = FF9Data.BattleTextFor(Path.GetFileName(sceneDir));
         var spellbook = party.ToDictionary(
             p => p.Name,
-            p => Spellbook.For(db, p.Name,
-                    APEarned.LearnedActives(db.Learnables.GetValueOrDefault(p.Name, []), p.Level),
-                    Loadout.Best(db, p.Name, threat))
-                .Where(s => BattleEngine.CanResolve(s.Script)).ToList());
+            p => (
+                Regular: Spellbook.For(db, p.Name,
+                        APEarned.LearnedActives(db.Learnables.GetValueOrDefault(p.Name, []), p.Level),
+                        Loadout.Best(db, p.Name, threat))
+                    .Where(s => BattleEngine.CanResolve(s.Script)).ToList(),
+                Trance: TranceAbilities(db, p.Name)));
 
         var enemyNames = enemies.Select(e => e.Name).ToList();
         var roll = enemyNames.Count == 1
@@ -162,7 +165,7 @@ public static class BattleCommand
             var tranced = engine.Players.Concat(engine.Enemies)
                 .Where(u => u.Has(BattleStatus.Trance))
                 .ToHashSet();
-            
+
             if (engine.IsEnemy(ready))
             {
                 Narrate(engine.ExecuteEnemyTurn(ready), itemNames);
@@ -175,7 +178,7 @@ public static class BattleCommand
             }
             else
                 Narrate(TakePlayerTurn(db, engine, ready, spellbook, world, itemEffects), itemNames);
-            
+
             foreach (var reaction in engine.PendingReactions)
             {
                 if (engine.IsEnemy(reaction.Actor))
@@ -301,17 +304,42 @@ public static class BattleCommand
         }
     }
 
-    private static BattleEvent TakePlayerTurn(RulesDB db, BattleEngine engine, BattleUnit actor, 
-        Dictionary<String, List<BattleAction>> spellbook, WorldState world,
+    /// <summary>The abilities a character gains ONLY in Trance.</summary>
+    private static List<BattleAction> TranceAbilities(RulesDB db, String name)
+    {
+        var id = db.BaseStats.First(c => c.Name == name).ID;
+        var set = db.CommandSets[db.Parameters[id].DefaultCommandSet];
+        var regular = CommandAbilities(db, set.Regular1)
+            .Concat(CommandAbilities(db, set.Regular2)).ToHashSet();
+
+        return
+        [
+            .. CommandAbilities(db, set.Trance1)
+                .Concat(CommandAbilities(db, set.Trance2))
+                .Where(a => !regular.Contains(a))
+                .Select(a => db.Actions.GetValueOrDefault(a))
+                .OfType<BattleAction>()
+                .Where(a => BattleEngine.CanResolve(a.Script))
+        ];
+    }
+
+    private static IEnumerable<Int32> CommandAbilities(RulesDB db, Int32 commandId)
+        => db.Commands.TryGetValue(commandId, out var c) ? c.Abilities : [];
+
+    private static BattleEvent TakePlayerTurn(RulesDB db, BattleEngine engine, BattleUnit actor,
+        Dictionary<String, (List<BattleAction> Regular, List<BattleAction> Trance)> spellbook, WorldState world,
         IReadOnlyDictionary<ItemID, BattleAbility> itemEffects)
     {
         Console.WriteLine();
         foreach (var p in engine.Players)
             Console.WriteLine($"  {p.Name,-8} HP {p.CurrentHP}/{p.MaxHP}  MP {p.CurrentMP}/{p.MaxMP}{(p == actor ? "   ◄ ready" : "")}");
 
-        var castable = (spellbook.GetValueOrDefault(actor.Name) ?? [])
-            .Where(s => s.MP <= actor.CurrentMP).ToList();
-        
+        var book = spellbook.GetValueOrDefault(actor.Name);
+        var castable = (book.Regular ?? []).ToList();
+        if (actor.Has(BattleStatus.Trance))
+            castable.AddRange(book.Trance ?? []);
+        castable = [.. castable.Where(s => s.MP <= actor.CurrentMP)];
+
         // an item is offered only if the party holds one AND it has an effect to run
         var usable = world.Items.Contents
             .Where(entry => itemEffects.ContainsKey(entry.Key))

@@ -14,7 +14,9 @@ public sealed record RulesDB(
     IReadOnlyDictionary<Int32, StatusEntry> StatusData,
     IReadOnlyDictionary<Int32, CharacterParameter> Parameters,
     IReadOnlyList<InitialItem> InitialItems,
-    IReadOnlyDictionary<Int32, ItemEffect> ItemEffects)
+    IReadOnlyDictionary<Int32, ItemEffect> ItemEffects,
+    IReadOnlyDictionary<Int32, Command> Commands,
+    IReadOnlyDictionary<Int32, CommandSet> CommandSets)
 {
     public static RulesDB Load(String dataRoot)
     {
@@ -42,7 +44,9 @@ public sealed record RulesDB(
             StatusEntry.Load(Path.Combine(dataRoot, @"Battle\StatusData.csv")),
             CharacterParameter.Load(Path.Combine(dataRoot, @"Characters\CharacterParameters.csv")),
             InitialItem.Load(Path.Combine(dataRoot, @"Items\InitialItems.csv")),
-            ItemEffect.Load(Path.Combine(dataRoot, @"Items\ItemEffects.csv")));
+            ItemEffect.Load(Path.Combine(dataRoot, @"Items\ItemEffects.csv")),
+            Command.Load(Path.Combine(dataRoot, @"Characters\Commands.csv")),
+            CommandSet.Load(Path.Combine(dataRoot, @"Characters\CommandSets.csv")));
     }
 }
 
