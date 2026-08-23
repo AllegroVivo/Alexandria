@@ -19,6 +19,9 @@ switch (args.Length)
     case > 0 when args[0] == "spells":
         PlayerAbilityCensusCommand.Run();
         return;
+    case >0 when args[0] == "cards":
+        CardCensusCommand.Run();
+        return;
 }
 
 var path = args[0];

@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\Alexandria.Cards\Alexandria.Cards.csproj" />
     <ProjectReference Include="..\Alexandria.Formats\Alexandria.Formats.csproj" />
     <ProjectReference Include="..\Alexandria.Battle\Alexandria.Battle.csproj" />
     <ProjectReference Include="..\Alexandria.Rules\Alexandria.Rules.csproj" />
@@ -11,6 +12,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <LangVersion>default</LangVersion>
   </PropertyGroup>
 
 </Project>

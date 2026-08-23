@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Alexandria.Battle/Alexandria.Battle.csproj" />
+    <Project Path="src/Alexandria.Cards/Alexandria.Cards.csproj" />
     <Project Path="src/Alexandria.Formats/Alexandria.Formats.csproj" />
     <Project Path="src/Alexandria.Rules/Alexandria.Rules.csproj" />
     <Project Path="src/ff9tool/ff9tool.csproj" />

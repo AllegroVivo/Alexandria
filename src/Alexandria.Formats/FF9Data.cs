@@ -18,6 +18,12 @@ public static class FF9Data
 
     /// <summary>Scene name → the numeric id its .mes file is named after.</summary>
     public static String SceneCsv => Path.Combine(Root, "SceneData.csv");
+    
+    /// <summary>The Tetra Master card table.</summary>
+    public static String TripleTriadCsv => Path.Combine(Data, @"TetraMaster\TripleTriad.csv");
+
+    /// <summary>Card display names.</summary>
+    public static String CardTitles => Path.Combine(Root, @"Text\US\ETC\CardTitles.strings");
 
     public static String Scene(String sceneName) => Path.Combine(Scenes, sceneName);
 
