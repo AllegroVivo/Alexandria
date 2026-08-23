@@ -41,6 +41,7 @@ public enum BattleStatus : UInt32
     CannotAct = Petrify | Venom | Stop | Freeze,
     CannotTrance = Petrify | Venom | Zombie | Death | Stop | Trance | Freeze,
     NoInput = Petrify | Venom | Death | Confuse | Berserk | Sleep | Stop | Freeze | Jump,
+    CannotEscape = Petrify | Venom | Zombie | Death | Stop | Sleep | Freeze | Jump,
 
     AnyPositive = AutoLife | Trance | Defend | Regen | Haste | Float | Shell
                   | Protect | Vanish | Reflect,

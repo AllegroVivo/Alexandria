@@ -151,7 +151,8 @@ public static class BattleCommand
             statusTable: statusTable, host: host, director: director, world: world,
             itemEffects: itemEffects)
         {
-            SpecialStart = scene.Header.SpecialStart
+            SpecialStart = scene.Header.SpecialStart,
+            CanRunAway = scene.Header.Runaway
         };
 
         while (engine.TickUntilReady() is { } ready)
@@ -196,6 +197,7 @@ public static class BattleCommand
             1 or 2 => "\n*** VICTORY! ***",
             7 => "\n*** The enemy escapes! ***",
             3 or 6 => "\n*** The party has fallen... ***",
+            _ when engine.Escaped => "\n*** The party escapes! ***",
             _ => engine.Victory ? "\n*** VICTORY! ***" : "\n*** The party has fallen... ***"
         });
         if (host.GilEarned > 0)

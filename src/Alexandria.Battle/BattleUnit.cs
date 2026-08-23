@@ -75,6 +75,8 @@ public sealed class BattleUnit
     public ItemID Weapon { get; set; } = ItemID.NoItem;
     public BattleStatus WeaponStatus { get; set; }
     
+    public Int32 BonusGil { get; set; }
+    
     /// <summary>The row this character belongs in.</summary>
     public Int32 DefaultRow { get; set; }
     public Boolean TurnedAway { get; set; }
@@ -105,7 +107,8 @@ public sealed class BattleUnit
         DiesFighting = (m.Flags & 1) != 0,
         ModelID = m.Geo,
         HasTrance = ((BattleStatus)m.ResistStatus & BattleStatus.Trance) == 0,
-        StealItems = [.. m.StealItems.Select(i => (ItemID)i).Where(i => i != ItemID.NoItem)]
+        StealItems = [.. m.StealItems.Select(i => (ItemID)i).Where(i => i != ItemID.NoItem)],
+        BonusGil = m.WinGil
     };
 
     public Boolean Has(BattleStatus status) => (Statuses & status) != 0;

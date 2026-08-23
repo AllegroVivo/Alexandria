@@ -41,6 +41,9 @@ public sealed partial class BattleEngine
     /// <summary>btl_scene.Info.SpecialStart - a scripted opening (bit 0 of the scene flags).</summary>
     public Boolean SpecialStart { get; set; }
 
+    public Boolean CanRunAway { get; set; } = true;
+    public Boolean Escaped { get; set; }
+
     public List<BattleUnit> Players { get; }
     public List<BattleUnit> Enemies { get; }
 
@@ -72,7 +75,7 @@ public sealed partial class BattleEngine
 
     public Boolean Victory => Enemies.All(e => !e.IsAlive);
     public Boolean Defeat => Players.All(p => !p.IsAlive);
-    public Boolean IsOver => Victory || Defeat || _host?.Result is not null;
+    public Boolean IsOver => Victory || Defeat || Escaped || _host?.Result is not null;
 
     public static Boolean CanResolve(AbilityScript script) => Verbs.ContainsKey(script);
 
@@ -376,7 +379,7 @@ public sealed partial class BattleEngine
         [AbilityScript.WhatIsThat] = (e, actor, target, _, _) => e.ExecuteWhatIsThat(actor, target),
         // AbilityScript.ChangeRow,
         // AbilityScript.FleeIteration,
-        // AbilityScript.Flee,
+        [AbilityScript.Flee] = (e, actor, target, ability, _) => e.ExecuteFlee(actor, target, ability),
         // AbilityScript.Steal,
         [AbilityScript.Scan] = (e, actor, target, _, _) => e.ExecuteScan(actor, target),
         [AbilityScript.Detect] = (e, actor, target, _, _) => e.ExecuteDetect(actor, target),

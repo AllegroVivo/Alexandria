@@ -584,7 +584,19 @@ public sealed partial class BattleEngine
     
     // AbilityScript.ChangeRow,
     // AbilityScript.FleeIteration,
-    // AbilityScript.Flee,
+
+    /// <summary>Flee (mirror: 0057_FleeScript): the party runs.</summary>
+    public BattleEvent ExecuteFlee(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    {
+        if (!CanRunAway || !Players.Any(p => p.IsAlive && !p.Has(BattleStatus.CannotEscape)))
+            return Missed(caster, target);
+
+        var purse = Enemies.Sum(e => e.BonusGil) + (_host?.GilEarned ?? 0);
+        _world.Gil -= Math.Min(_world.Gil, purse / 10);
+        Escaped = true;
+        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0));
+    }
+    
     // AbilityScript.Steal,
 
     /// <summary>Scan (mirror: 0059 → Libra): pure information.</summary>
