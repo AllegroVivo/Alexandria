@@ -34,6 +34,15 @@ public static class TetraCommand
             MatchResult.Lose => $"\n*** You lose, {match.Board.Score(CardSide.Player)}–{match.Board.Score(CardSide.Opponent)} ***",
             _ => "\n*** A draw ***"
         });
+
+        match.AwardLevels(pool, rng);
+        if (match.Spoils.Count > 0)
+        {
+            var taken = match.Spoils[rng.Next(0, match.Spoils.Count)];
+            Console.WriteLine(match.Result == MatchResult.Win
+                ? $"  You take {taken.Card.Face} {taken.Card.Name}!"
+                : $"  They take {taken.Card.Face} {taken.Card.Name}.");
+        }
     }
 
     private static PlayOutcome PlayerTurn(CardMatch match)
@@ -50,10 +59,19 @@ public static class TetraCommand
             y = Ask("  row (0-3)? ", CardBoard.Height, from: 0);
         } while (!match.Board.IsFree(x, y));
 
+        if (!match.Board.IsFree(x, y))
+            (x, y) = FirstFree(match.Board);
+
         return match.Play(x, y, card, Choose);
     }
 
-    private static PlayedCard? Choose(IReadOnlyList<PlayedCard> options)
+    private static (Int32 X, Int32 Y) FirstFree(CardBoard board)
+        => (from y in Enumerable.Range(0, CardBoard.Height)
+            from x in Enumerable.Range(0, CardBoard.Width)
+            where board.IsFree(x, y)
+            select (x, y)).First();
+
+    private static PlayedCard Choose(IReadOnlyList<PlayedCard> options)
     {
         if (options.Count == 1)
             return options[0];

@@ -37,7 +37,7 @@ public class CardPlayTests
 
         // attack 0x50 rolls 0x40, defence 0x10 rolls 0x00 — the attacker wins
         var outcome = CardPlay.Play(board, 0, 0, Card(CardArrows.Right, CardSide.Player),
-            new RiggedRandom(0x40, 0x00), First);
+            new RiggedRandom(0x40, 0x00, 1), First);
 
         Assert.Equal(CardSide.Player, defender.Side);
         Assert.Equal(CardSide.Player, bystander.Side);   // taken by the combo, with no fight
@@ -58,7 +58,7 @@ public class CardPlayTests
         var attacker = Card(CardArrows.Right | CardArrows.Down | CardArrows.DownRight, CardSide.Player);
 
         // attack 0x50 rolls 0x00, defence 0xF0 rolls 0x80 — the attacker loses
-        var outcome = CardPlay.Play(board, 0, 0, attacker, new RiggedRandom(0x00, 0x80), First);
+        var outcome = CardPlay.Play(board, 0, 0, attacker, new RiggedRandom(0x00, 0x80, 1), First);
 
         Assert.True(outcome.AttackerTaken);
         Assert.Equal(CardSide.Opponent, attacker.Side);
@@ -77,7 +77,7 @@ public class CardPlayTests
 
         var outcome = CardPlay.Play(board, 0, 0,
             Card(CardArrows.Right | CardArrows.Down, CardSide.Player),
-            new RiggedRandom(0x40, 0x00, 0x40, 0x00), First);
+            new RiggedRandom(0x40, 0x00, 1, 0x40, 0x00, 1), First);
 
         Assert.Equal(2, outcome.Battles.Count);
         Assert.Equal(CardSide.Player, first.Side);

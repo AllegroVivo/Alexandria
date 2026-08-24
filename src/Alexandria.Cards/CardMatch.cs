@@ -8,6 +8,8 @@ public sealed class CardMatch
     private readonly Random _rng;
     private readonly List<TetraCard> _player;
     private readonly List<TetraCard> _opponent;
+
+    private readonly List<(PlayedCard Card, CardSide Owner)> _played = [];
     
     public CardBoard Board { get; }
     public CardSide Turn { get; private set; }
@@ -37,7 +39,9 @@ public sealed class CardMatch
         Func<IReadOnlyList<PlayedCard>, PlayedCard?> choose)
     {
         (Turn == CardSide.Player ? _player : _opponent).Remove(card);
-        var outcome = CardPlay.Play(Board, x, y, new PlayedCard(card, Turn), _rng, choose);
+        var played = new PlayedCard(card, Turn);
+        _played.Add((played, Turn));
+        var outcome = CardPlay.Play(Board, x, y, played, _rng, choose);
         Turn = Turn == CardSide.Player ? CardSide.Opponent : CardSide.Player;
         return outcome;
     }
@@ -65,6 +69,28 @@ public sealed class CardMatch
             squares.Remove(pick);
             yield return (pick % CardBoard.Width, pick / CardBoard.Width);
         }
+    }
+
+    /// <summary>What the winner may keep one of (mirror: matchResult.selectable): the
+    /// LOSER'S OWN cards that the winner ended up holding.</summary>
+    public IReadOnlyList<PlayedCard> Spoils => Result switch
+    {
+        MatchResult.Win => [.. Captured(CardSide.Opponent, CardSide.Player)],
+        MatchResult.Lose => [.. Captured(CardSide.Player, CardSide.Opponent)],
+        _ => []
+    };
+
+    private IEnumerable<PlayedCard> Captured(CardSide from, CardSide by)
+        => _played.Where(p => p.Owner == from && p.Card.Side == by).Select(p => p.Card);
+
+    /// <summary>Mirror: RestoreCards. On a PLAYER WIN only, every card ending up in the
+    /// player's hands creeps one stat upward.</summary>
+    public void AwardLevels(IReadOnlyList<TetraCard> pool, Random rng)
+    {
+        if (Result != MatchResult.Win)
+            return;
+        foreach (var (played, _) in _played.Where(p => p.Card.Side == CardSide.Player))
+            played.LevelUp(pool[played.Card.ID], rng);
     }
 }
 

@@ -1,6 +1,6 @@
 namespace Alexandria.Cards;
 
-public class CardPlay
+public static class CardPlay
 {
     /// <summary>Put a card down and settle everything it touches (mirror: QuadMistGame's
     /// CALCULATE_BATTLE / ANIMATE_BATTLE pair).</summary>
@@ -21,6 +21,8 @@ public class CardPlay
 
             if (battle.AttackerWins)
             {
+                card.Promote(rng);
+                
                 // computed BEFORE the flip, while the sides still say who owned what
                 var combo = Combo(board, defender, card.Side);
 
@@ -34,6 +36,8 @@ public class CardPlay
                 challenges.Remove(defender);
                 continue;
             }
+
+            defender.Promote(rng);
             
             // the placed card is taken, and its OWN neighbors go with it
             var loss = Combo(board, card, defender.Side);
