@@ -11,6 +11,9 @@ public sealed record TetraCard(
     Byte MagicalDefense,
     CardIcon Icon)
 {
+    /// <summary>Which way this copy points.</summary>
+    public CardArrows Arrows { get; init; }
+    
     /// <summary>The four characters printed on the card.</summary>
     public String Face
         => $"{Attack >> 4:X}{Type.Letter}{PhysicalDefense >> 4:X}{MagicalDefense >> 4:X}";

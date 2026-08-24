@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Alexandria.Battle.Tests/Alexandria.Battle.Tests.csproj" />
+    <Project Path="tests/Alexandria.Cards.Tests/Alexandria.Cards.Tests.csproj" />
     <Project Path="tests/Alexandria.Formats.Tests/Alexandria.Formats.Tests.csproj" />
     <Project Path="tests/Alexandria.Rules.Tests/Alexandria.Rules.Tests.csproj" />
   </Folder>
