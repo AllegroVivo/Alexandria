@@ -14,6 +14,9 @@ public sealed class CardMatch
     public CardBoard Board { get; }
     public CardSide Turn { get; private set; }
 
+    public IReadOnlyList<PlayedCard> PlayerCards
+        => [.. _played.Where(p => p.Owner == CardSide.Player).Select(p => p.Card)];
+
     public CardMatch(IReadOnlyList<TetraCard> player, IReadOnlyList<TetraCard> opponent, Random rng)
     {
         _rng = rng;

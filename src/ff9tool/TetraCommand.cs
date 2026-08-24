@@ -10,10 +10,20 @@ public static class TetraCommand
     {
         var rng = new Random();
         var pool = CardPool.Load(FF9Data.CardData, FF9Data.CardTitles, FF9Data.TripleTriadCsv);
-        var match = new CardMatch(
-            CardDeal.Deal(pool, CardMatch.HandSize, rng),
-            CardDeal.Deal(pool, CardMatch.HandSize, rng),
-            rng);
+        Directory.CreateDirectory(FF9Data.SaveDir);
+        var album = CardAlbum.Load(FF9Data.AlbumPath, pool);
+
+        while (album.Cards.Count < CardMatch.HandSize)
+            album.Cards.Add(CardDeal.Create(pool[rng.Next(0, pool.Count)], rng));
+        
+        Console.WriteLine($"— album: {album.Cards.Count} cards, " +
+                          $"{album.Wins}W {album.Losses}L {album.Draws}D —");
+
+        var hand = album.Cards.OrderBy(_ => rng.Next()).Take(CardMatch.HandSize).ToList();
+        foreach (var card in hand)
+            album.Cards.Remove(card);
+
+        var match = new CardMatch(hand, CardDeal.Deal(pool, CardMatch.HandSize, rng), rng);
         
         Console.WriteLine($"— {match.Turn} goes first —");
 
@@ -36,13 +46,35 @@ public static class TetraCommand
         });
 
         match.AwardLevels(pool, rng);
+
+        foreach (var played in match.PlayerCards)
+            album.Cards.Add(played.Card);
+
         if (match.Spoils.Count > 0)
         {
             var taken = match.Spoils[rng.Next(0, match.Spoils.Count)];
-            Console.WriteLine(match.Result == MatchResult.Win
-                ? $"  You take {taken.Card.Face} {taken.Card.Name}!"
-                : $"  They take {taken.Card.Face} {taken.Card.Name}.");
+            if (match.Result == MatchResult.Win)
+            {
+                album.Cards.Add(taken.Card);
+                Console.WriteLine($"  You take {taken.Card.Face} {taken.Card.Name}!");
+            }
+            else
+            {
+                album.Cards.Remove(taken.Card);
+                Console.WriteLine($"  They take {taken.Card.Face} {taken.Card.Name}.");
+            }
         }
+
+        switch (match.Result)
+        {
+            case MatchResult.Win: album.Wins++; break;
+            case MatchResult.Lose: album.Losses++; break;
+            default: album.Draws++; break;
+        }
+
+        album.Save(FF9Data.AlbumPath);
+        Console.WriteLine($"  album: {album.Cards.Count} cards, " +
+                          $"{album.Wins}W {album.Losses}L {album.Draws}D");
     }
 
     private static PlayOutcome PlayerTurn(CardMatch match)

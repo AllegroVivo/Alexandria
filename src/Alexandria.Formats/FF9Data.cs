@@ -27,6 +27,11 @@ public static class FF9Data
 
     /// <summary>Card display names.</summary>
     public static String CardTitles => Path.Combine(Root, @"Text\US\ETC\CardTitles.strings");
+    
+    /// <summary>Where Alexandria's own saved state lives.</summary>
+    public static String SaveDir => Path.Combine(Root, "Alexandria");
+
+    public static String AlbumPath => Path.Combine(SaveDir, "album.json");
 
     public static String Scene(String sceneName) => Path.Combine(Scenes, sceneName);
 
