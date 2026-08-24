@@ -7,7 +7,7 @@ public sealed class CardCensusCommand
 {
     public static void Run()
     {
-        var cards = CardPool.Load(FF9Data.TripleTriadCsv, FF9Data.CardTitles);
+        var cards = CardPool.Load(FF9Data.CardData, FF9Data.CardTitles, FF9Data.TripleTriadCsv);
         Console.WriteLine($"{cards.Count} cards, {cards.Select(c => c.Icon).Distinct().Count()} categories\n");
 
         foreach (var group in cards.GroupBy(c=>c.Icon).OrderBy(g=>g.Key))

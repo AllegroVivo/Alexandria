@@ -19,7 +19,10 @@ public static class FF9Data
     /// <summary>Scene name → the numeric id its .mes file is named after.</summary>
     public static String SceneCsv => Path.Combine(Root, "SceneData.csv");
     
-    /// <summary>The Tetra Master card table.</summary>
+    /// <summary>The game's own card table.</summary>
+    public static String CardData => Path.Combine(Data, @"TetraMaster\MINIGAME_CARD_DATA_ADDRESS.bytes");
+
+    /// <summary>Card categories - Memoria's.</summary>
     public static String TripleTriadCsv => Path.Combine(Data, @"TetraMaster\TripleTriad.csv");
 
     /// <summary>Card display names.</summary>
