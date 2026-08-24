@@ -37,6 +37,19 @@ public static class Arrows
         _                    => (0, 0)
     };
 
+    public static String Glyphs(CardArrows arrows) => String.Concat(
+        Ring.Where(d => arrows.Points(d)).Select(d => d switch
+        {
+            CardArrows.Up        => '↑',
+            CardArrows.UpRight   => '↗',
+            CardArrows.Right     => '→',
+            CardArrows.DownRight => '↘',
+            CardArrows.Down      => '↓',
+            CardArrows.DownLeft  => '↙',
+            CardArrows.Left      => '←',
+            _                    => '↖'
+        }));
+
     /// <summary>What happens along one edge (mirror: CardArrow.CheckDirection). The
     /// defender's arrows are REVERSED before testing.</summary>
     public static ArrowClash Clash(CardArrows attacker, CardArrows defender, CardArrows direction)

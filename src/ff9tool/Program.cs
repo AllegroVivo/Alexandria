@@ -19,8 +19,11 @@ switch (args.Length)
     case > 0 when args[0] == "spells":
         PlayerAbilityCensusCommand.Run();
         return;
-    case >0 when args[0] == "cards":
+    case > 0 when args[0] == "cards":
         CardCensusCommand.Run();
+        return;
+    case > 0 when args[0] == "tetra":
+        TetraCommand.Run();
         return;
 }
 
