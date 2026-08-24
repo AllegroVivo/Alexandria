@@ -18,7 +18,7 @@ public sealed class CardBoard
     /// <summary>The card at a square, or null when it is empty, blocked, or off the board.</summary>
     public PlayedCard? this[Int32 x, Int32 y]
     {
-        get => x < 0 || x >= Width || y < 0 || w >= Height || _blocked[x + y * Width]
+        get => x < 0 || x >= Width || y < 0 || y >= Height || _blocked[x + y * Width]
             ? null
             : _cells[x + y * Width];
         set => _cells[x + y * Width] = value;
@@ -58,5 +58,15 @@ public sealed class CardBoard
 
     /// <summary>How many squares a side holds.</summary>
     public Int32 Score(CardSide side) => _cells.Count(c => c is not null && c.Side == side);
+
+    /// <summary>Where a card is sitting (mirror: Board.GetCardLocation), or null if it is
+    /// not on the board.</summary>
+    public (Int32 X, Int32 Y)? Locate(PlayedCard card)
+    {
+        for (var i = 0; i < _cells.Length; i++)
+            if (ReferenceEquals(_cells[i], card))
+                return (i % Width, i / Width);
+        return null;
+    }
 }
 
