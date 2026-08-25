@@ -2,7 +2,8 @@ namespace Alexandria.Rules;
 
 public class Loadout
 {
-    public static Int32[] Best(RulesDB db, String character, Byte threat = 0)
+    public static Int32[] Best(RulesDB db, String character, Byte threat = 0,
+        IReadOnlyCollection<Int32>? insist = null)
     {
         var slots = new Int32[5];
         for (var slot = 0; slot < slots.Length; slot++)
@@ -15,6 +16,13 @@ public class Loadout
                 .FirstOrDefault();
             slots[slot] = pick?.ID ?? -1;
         }
+
+        foreach (var id in insist??[])
+            if (db.Items.TryGetValue(id, out var forced)
+                && forced is { Slot: { } occupied, Wearers: not null }
+                && forced.Wearers.Contains(character))
+                slots[(Int32)occupied] = id;
+        
         return slots;
     }
 
@@ -35,8 +43,9 @@ public class Loadout
         }
 
         var learnable = db.Learnables.GetValueOrDefault(character, [])
-            .Select(a => a.Ability.ID).ToHashSet();
-        score += 60 * item.TaughtAbilities.Count(a => learnable.Contains(a.ID));
+            .Select(a => a.Ability)
+            .ToHashSet();
+        score += 60 * item.TaughtAbilities.Count(learnable.Contains);
         
         return score;
     }

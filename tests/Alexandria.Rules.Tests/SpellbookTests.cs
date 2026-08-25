@@ -48,4 +48,26 @@ public class SpellbookTests
     [Fact]
     public void Steiners_kit_teaches_no_spells()
         => Assert.Empty(Spellbook.For(Db, "Steiner"));
+    
+    [Fact]
+    public void The_book_follows_the_kit_it_is_handed()
+    {
+        // with no learned abilities the book is purely what the gear teaches, so this
+        // pins the kit parameter actually being READ — the thing that would break silently
+        var best = EquipmentKit.Resolve(Loadout.Best(Db, "Zidane"),
+            Db.Items, Db.Weapons, Db.Armors, Db.GrowthStats);
+        var thief = EquipmentKit.Resolve(Loadout.Best(Db, "Zidane", insist: [3, 98]),
+            Db.Items, Db.Weapons, Db.Armors, Db.GrowthStats);
+
+        var bestBook = Spellbook.For(Db, "Zidane", kit: best).Select(s => s.Name).ToList();
+        var thiefBook = Spellbook.For(Db, "Zidane", kit: thief).Select(s => s.Name).ToList();
+
+        // The Tower teaches AA:107 and AA:108; a Mythril Dagger teaches SA:62 and no actives.
+        // Thievery is weapon-only so it goes — but Lucky Seven SURVIVES, because the book is a
+        // union over every slot and the Thief Hat in the helmet teaches AA:107 too.
+        Assert.Contains("Thievery", bestBook);
+        Assert.DoesNotContain("Thievery", thiefBook);
+        Assert.Contains("Lucky Seven", bestBook);
+        Assert.Contains("Lucky Seven", thiefBook);
+    }
 }

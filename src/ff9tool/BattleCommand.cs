@@ -40,6 +40,9 @@ public static class BattleCommand
                 f => AnimationSequenceScript.Read(f).StandAnimation);
 
         var pattern = args.Length > 1 ? Int32.Parse(args[1]) : 0;
+        var insist = args.Length > 3
+            ? args[3].Split(',', StringSplitOptions.RemoveEmptyEntries).Select(Int32.Parse).ToList()
+            : null;
         var formation = scene.Formations[pattern];
         var placements = formation.Monsters.Take(Math.Min(formation.MonsterCount, (Byte)4)).ToList();
 
@@ -76,7 +79,11 @@ public static class BattleCommand
 
         var level = enemies.Max(e => e.Level);
         var partyNames = args.Length > 2 ? args[2].Split(',') : ["Zidane", "Garnet", "Steiner", "Vivi"];
-        var party = partyNames.Select(n => BuildCharacter(db, n, level, threat)).ToList();
+        var kits = partyNames.ToDictionary(
+            n => n,
+            n => EquipmentKit.Resolve(Loadout.Best(db, n, threat, insist),
+                db.Items, db.Weapons, db.Armors, db.GrowthStats));
+        var party = partyNames.Select(n => BuildCharacter(db, n, level, kits[n])).ToList();
         foreach (var member in party)
             member.TranceGauge = 200;
         var host = new EngineHost(party, enemies, rng) { Pattern = pattern };
@@ -126,7 +133,7 @@ public static class BattleCommand
             p => (
                 Regular: Spellbook.For(db, p.Name,
                         APEarned.LearnedActives(db.Learnables.GetValueOrDefault(p.Name, []), p.Level),
-                        Loadout.Best(db, p.Name, threat))
+                        kits[p.Name])
                     .Where(s => BattleEngine.CanResolve(s.Script))
                     .Concat(DirectCommands(db, p.Name)).ToList(),
                 Trance: TranceAbilities(db, p.Name)));
@@ -230,11 +237,9 @@ public static class BattleCommand
         world.Save(FF9Data.WorldPath);
     }
 
-    private static BattleUnit BuildCharacter(RulesDB db, String name, Int32 level, Byte threat = 0)
+    private static BattleUnit BuildCharacter(RulesDB db, String name, Int32 level, EquipmentKit kit)
     {
         var baseStats = db.BaseStats.First(c => c.Name == name);
-        var slots = Loadout.Best(db, name, threat);
-        var kit = EquipmentKit.Resolve(slots, db.Items, db.Weapons, db.Armors, db.GrowthStats);
         var grown = GrowthSimulator.LevelUpTo(level, GrowthBonuses.None, kit.GrowthPerLevel);
         var sheet = StatGrowth.AtLevel(baseStats, db.Leveling, level, grown);
 

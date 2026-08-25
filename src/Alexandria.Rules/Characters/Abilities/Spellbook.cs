@@ -6,12 +6,10 @@ namespace Alexandria.Rules;
 public static class Spellbook
 {
     public static IReadOnlyList<BattleAction> For(RulesDB db, String name, 
-        IReadOnlySet<Int32>? learned = null, Int32[]? slots = null)
+        IReadOnlySet<Int32>? learned = null, EquipmentKit? kit = null)
     {
-        var kit = slots is null
-            ? EquipmentKit.Resolve(db.DefaultEquipment.First(e => e.Name == name),
-                db.Items, db.Weapons, db.Armors, db.GrowthStats)
-            : EquipmentKit.Resolve(slots, db.Items, db.Weapons, db.Armors, db.GrowthStats);
+        kit ??= EquipmentKit.Resolve(db.DefaultEquipment.First(e => e.Name == name),
+            db.Items, db.Weapons, db.Armors, db.GrowthStats);
         var usable = kit.TaughtAbilities
             .Where(a => a.Kind == AbilityKind.Active)
             .Select(a => a.ID)
