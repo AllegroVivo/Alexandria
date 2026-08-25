@@ -638,7 +638,7 @@ public sealed partial class BattleEngine
     {
         if ((target.Category & EnemyCategory.Stone) == 0)
             return ExecuteCure(caster, target, ability);
-        caster.CurrentHP = 0;
+        target.CurrentHP = 0;
         StatusApplication.Apply(target, BattleStatus.Death, _statusTable);
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0));
     }

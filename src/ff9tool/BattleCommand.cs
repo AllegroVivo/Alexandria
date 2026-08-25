@@ -195,6 +195,9 @@ public static class BattleCommand
         }
         NarrateTicks(engine);
 
+        var gilBefore = world.Gil;
+        engine.Settle();
+
         Console.WriteLine(host.Result switch
         {
             1 or 2 => "\n*** VICTORY! ***",
@@ -203,8 +206,15 @@ public static class BattleCommand
             _ when engine.Escaped => "\n*** The party escapes! ***",
             _ => engine.Victory ? "\n*** VICTORY! ***" : "\n*** The party has fallen... ***"
         });
-        if (host.GilEarned > 0)
-            Console.WriteLine($"Received {host.GilEarned} gil!");
+        if (world.Gil > gilBefore)
+            Console.WriteLine($"Received {world.Gil - gilBefore} gil! ({world.Gil} in the party purse)");
+
+        var tallied = Enum.GetValues<EnemyCategory>()
+            .Where(c => c != EnemyCategory.None && world.Kills[c] > 0)
+            .Select(c => $"{c} {world.Kills[c]}")
+            .ToList();
+        if (tallied.Count > 0)
+            Console.WriteLine($"Kill count — {String.Join(", ", tallied)}");
     }
 
     private static BattleUnit BuildCharacter(RulesDB db, String name, Int32 level, Byte threat = 0)

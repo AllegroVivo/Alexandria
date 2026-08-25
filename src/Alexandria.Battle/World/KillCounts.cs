@@ -14,6 +14,14 @@ public sealed class KillCounts
         set => _tallies[Slot(category)] = Math.Clamp(value, (Int16)0, Cap);
     }
 
+    /// <summary>Tallies one defeat (mirror: btl_mot.cs:339, the die_seq 5 sweep).</summary>
+    public void Record(EnemyCategory category)
+    {
+        for (var bit = 0; bit < _tallies.Length; bit++)
+            if (((Byte)category * (1 << bit)) != 0 && _tallies[bit] < Cap)
+                _tallies[bit]++;
+    }
+
     private static Int32 Slot(EnemyCategory category)
     {
         Int32 bits = (Byte)category;

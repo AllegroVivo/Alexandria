@@ -32,6 +32,9 @@ public sealed partial class BattleEngine
     private Boolean _reacting;
     private Int32 _openingFrames;
 
+    private readonly HashSet<BattleUnit> _reaped = [];
+    private Boolean _settled;
+
     private BattleCommandID _currentCommand = BattleCommandID.EnemyAtk;
 
     private delegate BattleEvent Verb(BattleEngine e, BattleUnit actor, BattleUnit target, BattleAbility ability, Boolean divided);
@@ -84,6 +87,7 @@ public sealed partial class BattleEngine
     /// <summary>Advances the clock until a living unit is ready; null when the battle is over.</summary>
     public BattleUnit? TickUntilReady()
     {
+        Reap();
         while (!IsOver)
         {
             var ready = AllUnits.FirstOrDefault(u => u is { IsFighting: true, ATBReady: true }
@@ -92,6 +96,7 @@ public sealed partial class BattleEngine
                 return ready;
 
             TickScripts();
+            Reap();
             if (_host is not null && _host.Phase != EngineHost.PhaseNormal)
             {
                 if (++_openingFrames <= OpeningBudget)
@@ -106,6 +111,27 @@ public sealed partial class BattleEngine
             }
         }
         return null;
+    }
+
+    /// <summary>Counts the enemies that have died since the last look.</summary>
+    private void Reap()
+    {
+        foreach (var enemy in Enemies)
+            if (!enemy.IsAlive && _reaped.Add(enemy))
+                _world.Kills.Record(enemy.Category);
+    }
+
+    public Int32 Purse => _reaped.Sum(e => e.BonusGil) + (_host?.GilEarned ?? 0);
+    
+    /// <summary>End-of-battle bookkeeping.</summary>
+    public void Settle()
+    {
+        Reap();
+        if (_settled || !IsOver)
+            return;
+        _settled = true;
+        if (!Escaped && Victory)
+            _world.Gil += Purse;
     }
 
     /// <summary>One frame of every script thread (mirror: ProcessEvents running each
@@ -168,11 +194,10 @@ public sealed partial class BattleEngine
         return ev;
     }
     
-    /// <summary>Mirror: SBattleCalculator.CalcResult's tail — every resolved
+    /// <summary>Mirror: SBattleCalculator.CalcResult's tail - every resolved
     /// (command, target) pair provokes the target's script. Enemy targets only,
     /// player attackers only, blocked by PreventCounter; HP-zero fires the death
-    /// function (tag 9), otherwise the counter (tag 6). Counters can't chain:
-    /// vanilla gates on IsCommandDeclarable, and a retaliation isn't declarable.</summary>
+    /// function (tag 9), otherwise the counter (tag 6).</summary>
     private void Provoke(BattleUnit attacker, BattleUnit target)
     {
         if (_reacting || !IsEnemy(target) || IsEnemy(attacker))
