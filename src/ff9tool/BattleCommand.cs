@@ -127,7 +127,8 @@ public static class BattleCommand
                 Regular: Spellbook.For(db, p.Name,
                         APEarned.LearnedActives(db.Learnables.GetValueOrDefault(p.Name, []), p.Level),
                         Loadout.Best(db, p.Name, threat))
-                    .Where(s => BattleEngine.CanResolve(s.Script)).ToList(),
+                    .Where(s => BattleEngine.CanResolve(s.Script))
+                    .Concat(DirectCommands(db, p.Name)).ToList(),
                 Trance: TranceAbilities(db, p.Name)));
 
         var enemyNames = enemies.Select(e => e.Name).ToList();
@@ -135,6 +136,12 @@ public static class BattleCommand
             ? enemyNames[0]
             : $"{String.Join(", ", enemyNames.Take(enemyNames.Count - 1))} and {enemyNames[^1]}";
         Console.WriteLine($"— {roll} appeared! —");
+
+        foreach (var p in party.Where(p => p.Supports != SupportAbility.None))
+            Console.WriteLine($"  {p.Name} has {p.Supports}"
+                              + (p.Has(SupportAbility.AddStatus) && p.WeaponStatusRate > 0
+                                  ? $" — and a weapon that inflicts {p.WeaponStatus} at {p.WeaponStatusRate}%"
+                                  : ""));
 
         var statusTable = db.StatusData.Values
             .Where(s => s.Bit < 32)
@@ -248,7 +255,8 @@ public static class BattleCommand
             HasTrance = (db.Parameters[baseStats.ID].Category & CharacterCategory.SubPC) == 0,
             Weapon = kit.WeaponItem, WeaponStatus = (BattleStatus)db.StatusSets[kit.WeaponStatusIndex].StatusMask,
             Row = db.Parameters[baseStats.ID].DefaultRow, DefaultRow = db.Parameters[baseStats.ID].DefaultRow,
-            WeaponCategory = kit.WeaponCategory
+            WeaponCategory = kit.WeaponCategory, WeaponStatusRate = kit.WeaponStatusRate,
+            Supports = SupportSet.Equip(kit.TaughtAbilities, db.Gems, sheet.MagicStones)
         };
     }
 
@@ -259,6 +267,10 @@ public static class BattleCommand
 
         var line = e.Result.Outcome switch
         {
+            AttackOutcome.Hit when e.Ability?.Script == AbilityScript.Steal && e.ItemMoved is { } got
+                => $"{e.Actor.Name} steals {itemNames.GetValueOrDefault((Int32)got, $"item {(Int32)got}")}!",
+            AttackOutcome.Miss when e.Ability?.Script == AbilityScript.Steal
+                => $"{e.Actor.Name} couldn't steal anything.",
             AttackOutcome.Miss => $"{e.Actor.Name}'s attack misses {e.Target.Name}!",
             AttackOutcome.Evaded => $"{e.Actor.Name} attacks {e.Target.Name} — evaded!",
             AttackOutcome.CriticalHit => $"{e.Actor.Name} lands a CRITICAL on {e.Target.Name} for {e.Result.Damage}!",
@@ -280,15 +292,16 @@ public static class BattleCommand
                 $"weak {e.Target.WeakElements}, absorbs {e.Target.AbsorbElements}",
             AttackOutcome.Detected =>
                 $"{e.Target.Name} is carrying: " +
-                (e.Target.StealItems.Count == 0
+                (e.Target.StealItems.All(i => i == ItemID.NoItem)
                     ? "nothing"
                     : String.Join(", ", e.Target.StealItems.AsEnumerable().Reverse()
+                        .Where(i => i != ItemID.NoItem)
                         .Select(i => itemNames.GetValueOrDefault((Int32)i, $"item {(Int32)i}")))),
             _ => $"{e.Actor.Name} hits {e.Target.Name} for {e.Result.Damage}."
         };
         if (e.StatusesAdded != 0 && e.Result.Damage > 0)
             line += $"  {e.Target.Name} is afflicted with {e.StatusesAdded}!";
-        if (e.ItemMoved is { } moved)
+        if (e.ItemMoved is { } moved && e.Ability?.Script != AbilityScript.Steal)
             line += $"  — {itemNames.GetValueOrDefault((Int32)moved, $"item {(Int32)moved}")}!";
         Console.WriteLine(line + (e.Target.IsAlive ? "" : $"  {e.Target.Name} falls!"));
     }
@@ -339,6 +352,23 @@ public static class BattleCommand
         ];
     }
 
+    /// <summary>A character's own COMMANDS (mirror: CommandSets.csv Regular 1/2 → Commands.csv).</summary>
+    private static List<BattleAction> DirectCommands(RulesDB db, String name)
+    {
+        var id = db.BaseStats.First(c => c.Name == name).ID;
+        var set = db.CommandSets[db.Parameters[id].DefaultCommandSet];
+        return
+        [
+            .. new[] { set.Regular1, set.Regular2 }
+                .Select(c => db.Commands.GetValueOrDefault(c))
+                .OfType<Command>()
+                .Where(c => c.Abilities.Count == 0)
+                .Select(c => db.Actions.GetValueOrDefault(c.Ability))
+                .OfType<BattleAction>()
+                .Where(a => BattleEngine.CanResolve(a.Script))
+        ];
+    }
+
     private static IEnumerable<Int32> CommandAbilities(RulesDB db, Int32 commandId)
         => db.Commands.TryGetValue(commandId, out var c) ? c.Abilities : [];
 
@@ -374,7 +404,7 @@ public static class BattleCommand
                 for (var i = 0; i < castable.Count; i++)
                     Console.WriteLine($"  [{i + 1}] {castable[i].Name}  (MP {castable[i].MP})");
 
-                var spell = Prompt(castable, s => s.Name, $"{actor.Name} casts which spell? ");
+                var spell = Prompt(castable, s => s.Name, $"{actor.Name} uses which ability? ");
                 var target = spell.DefaultAlly
                     ? PromptAlly(engine, spell.ForDead, "On whom? ")
                     : PromptEnemy(engine, "On which target? ");

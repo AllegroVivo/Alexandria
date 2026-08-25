@@ -1,4 +1,5 @@
 using System.Reflection.Metadata;
+using Alexandria.Formats.Scenes.BattleScene;
 using Alexandria.Rules;
 
 namespace Alexandria.Battle;
@@ -596,8 +597,42 @@ public sealed partial class BattleEngine
         Escaped = true;
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0));
     }
-    
-    // AbilityScript.Steal,
+
+    /// <summary>Steal (mirror: 0058_StealScript). Getting in is (Level + Spirit) against the
+    /// target's Level, two modulo rolls compared. The four slots are then tried RAREST first,
+    /// each on its own flat chance.</summary>
+    public BattleEvent ExecutePlayerSteal(BattleUnit caster, BattleUnit target)
+    {
+        if (target.StealItems.All(i => i == ItemID.NoItem))
+            return Finish(caster, target, new AttackResult(AttackOutcome.Miss, 0));
+
+        var reach = caster.Level + caster.Spirit;
+        if (!caster.Has(SupportAbility.Bandit)
+            && target.Level > 0 
+            && _rng.Rand16() % reach < _rng.Rand16() % target.Level)
+            return Finish(caster, target, new AttackResult(AttackOutcome.Miss, 0));
+
+        var thief = caster.Has(SupportAbility.MasterThief);
+        for (var slot = target.StealItems.Length - 1; slot >= 0; slot--)
+        {
+            var carried = target.StealItems[slot];
+            if (thief && carried == ItemID.NoItem)
+                continue;
+
+            var rate = (Int32)BattleSceneMonsterParam.DefaultStealItemRates[slot];
+            if (_rng.Rand8() >= (thief ? Math.Max(32, rate) : rate))
+                continue;
+
+            if (carried == ItemID.NoItem)
+                break;
+
+            target.StealItems[slot] = ItemID.NoItem;
+            _world.Items.Add(carried);
+            _world.Thefts++;
+            return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0)) with { ItemMoved = carried };
+        }
+        return Finish(caster, target, new AttackResult(AttackOutcome.Miss, 0));
+    }
 
     /// <summary>Scan (mirror: 0059 → Libra): pure information.</summary>
     public BattleEvent ExecuteScan(BattleUnit caster, BattleUnit target)
@@ -610,7 +645,7 @@ public sealed partial class BattleEngine
 
     /// <summary>Charge! (mirror: 0061_ChargeScript): The user rallies every party member who
     /// has low HP, causing each one immediately attacks a random enemy</summary>
-    public BattleEvent ExecuteCharge(BattleUnit caster, BattleUnit target, BattleAbility ability)
+    public BattleEvent ExecuteCharge(BattleUnit caster, BattleUnit target)
     {
         var rallied = Players
             .Where(p => p.IsFighting && p.CurrentHP * 6 <= p.MaxHP && !p.Has(BattleStatus.NoInput))

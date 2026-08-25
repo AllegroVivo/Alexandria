@@ -16,6 +16,7 @@ public sealed record EquipmentKit(
     Byte WeakElements,
     ItemID WeaponItem,
     Int32 WeaponStatusIndex,
+    Int32 WeaponStatusRate,
     WeaponCategory WeaponCategory)
 {
     public static EquipmentKit Resolve(DefaultEquipmentSet set,
@@ -35,6 +36,7 @@ public sealed record EquipmentKit(
         Byte weaponElement = 0, boost = 0, guard = 0, absorb = 0, half = 0, weak = 0;
         var weaponItem = ItemID.NoItem;
         var weaponStatusIndex = 0;
+        var weaponStatusRate = 0;
         var weaponCategory = WeaponCategory.None;
         List<AbilityRef> taught = [];
 
@@ -58,6 +60,7 @@ public sealed record EquipmentKit(
                 weaponElement = w.Elements;
                 weaponItem = (ItemID)id;
                 weaponStatusIndex = w.StatusIndex;
+                weaponStatusRate = w.StatusRate;
             }
             if (item.ArmorID >= 0 && armors.TryGetValue(item.ArmorID, out var a))
             {
@@ -70,7 +73,8 @@ public sealed record EquipmentKit(
 
         var growth = Equipment.GrowthPerLevel(slots.Where(id => id >= 0), items, growthStats);
         return new EquipmentKit(power, pd, pe, md, me, growth, taught,
-            weaponElement, boost, guard, absorb, half, weak, weaponItem, weaponStatusIndex, weaponCategory);
+            weaponElement, boost, guard, absorb, half, weak, weaponItem, weaponStatusIndex, 
+            weaponStatusRate, weaponCategory);
     }
 }
 

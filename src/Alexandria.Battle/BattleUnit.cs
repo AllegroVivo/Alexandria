@@ -77,9 +77,13 @@ public sealed class BattleUnit
     /// <summary>btl.trance, 0–TranceMax.</summary>
     public Int32 TranceGauge { get; set; }
 
-    public IReadOnlyList<ItemID> StealItems { get; set; } = [];
+    /// <summary>The four steal slots, commonest FIRST (mirror: 0058_StealScript tries
+    /// 3, 2, 1, 0). Empty slots stay as NoItem rather than being filtered out.</summary>
+    public ItemID[] StealItems { get; set; } = [];
     public ItemID Weapon { get; set; } = ItemID.NoItem;
     public BattleStatus WeaponStatus { get; set; }
+    /// <summary>The weapon's own chance to inflict WeaponStatus, 0–100 (Weapons.csv "Rate").</summary>
+    public Int32 WeaponStatusRate { get; set; }
     public WeaponCategory WeaponCategory { get; set; }
     
     public Int32 BonusGil { get; set; }
@@ -88,6 +92,8 @@ public sealed class BattleUnit
     public Int32 DefaultRow { get; set; }
     public Boolean TurnedAway { get; set; }
 
+    public SupportAbility Supports { get; set; }
+    
     public static BattleUnit FromEnemy(String name, BattleSceneMonsterParam m) => new()
     {
         Name = name,
@@ -114,10 +120,11 @@ public sealed class BattleUnit
         DiesFighting = (m.Flags & 1) != 0,
         ModelID = m.Geo,
         HasTrance = ((BattleStatus)m.ResistStatus & BattleStatus.Trance) == 0,
-        StealItems = [.. m.StealItems.Select(i => (ItemID)i).Where(i => i != ItemID.NoItem)],
+        StealItems = [.. m.StealItems.Select(i => (ItemID)i)],
         BonusGil = m.WinGil
     };
 
     public Boolean Has(BattleStatus status) => (Statuses & status) != 0;
+    public Boolean Has(SupportAbility support) => (Supports & support) != 0;
 }
 

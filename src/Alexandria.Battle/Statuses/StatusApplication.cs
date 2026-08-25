@@ -9,6 +9,8 @@ public static class StatusApplication
     public static BattleStatus Apply(BattleUnit target, BattleStatus statuses,
         IReadOnlyDictionary<BattleStatus, StatusTiming> table)
     {
+        statuses &= ~target.ImmuneStatuses;
+        
         foreach(var (current, timing) in table)
             if (target.Has(current))
                 statuses &= ~timing.ImmunityProvided;

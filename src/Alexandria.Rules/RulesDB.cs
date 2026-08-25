@@ -16,7 +16,8 @@ public sealed record RulesDB(
     IReadOnlyList<InitialItem> InitialItems,
     IReadOnlyDictionary<Int32, ItemEffect> ItemEffects,
     IReadOnlyDictionary<Int32, Command> Commands,
-    IReadOnlyDictionary<Int32, CommandSet> CommandSets)
+    IReadOnlyDictionary<Int32, CommandSet> CommandSets,
+    IReadOnlyDictionary<Int32, AbilityGem> Gems)
 {
     public static RulesDB Load(String dataRoot)
     {
@@ -46,7 +47,8 @@ public sealed record RulesDB(
             InitialItem.Load(Path.Combine(dataRoot, @"Items\InitialItems.csv")),
             ItemEffect.Load(Path.Combine(dataRoot, @"Items\ItemEffects.csv")),
             Command.Load(Path.Combine(dataRoot, @"Characters\Commands.csv")),
-            CommandSet.Load(Path.Combine(dataRoot, @"Characters\CommandSets.csv")));
+            CommandSet.Load(Path.Combine(dataRoot, @"Characters\CommandSets.csv")),
+            AbilityGem.Load(Path.Combine(dataRoot, @"Characters\Abilities\AbilityGems.csv")));
     }
 }
 

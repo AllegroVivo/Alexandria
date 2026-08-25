@@ -189,9 +189,26 @@ public sealed partial class BattleEngine
     /// <summary>A basic attack as a COMMAND Verbs call ExecuteAttack directly instead.</summary>
     public BattleEvent ExecuteBasicAttack(BattleUnit actor, BattleUnit target)
     {
-        var ev = ExecuteAttack(actor, target);
+        var ev = AddWeaponStatus(actor, target, ExecuteAttack(actor, target));
         DrainTrance(actor);
         return ev;
+    }
+
+    /// <summary>Add Status (mirror: AbilityFeatures.txt ">SA 25 Add Status" — `AbilityId ==
+    /// BattleAbilityId_Attack &amp;&amp; GetRandom(0, 100) &lt; CasterWeaponRate &amp;&amp;
+    /// CasterIsPlayer != TargetIsPlayer`).</summary>
+    private BattleEvent AddWeaponStatus(BattleUnit actor, BattleUnit target, BattleEvent ev)
+    {
+        if (!actor.Has(SupportAbility.AddStatus)
+            || IsEnemy(actor) == IsEnemy(target)
+            || ev.Result.Outcome is not (AttackOutcome.Hit or AttackOutcome.CriticalHit)
+            || actor.WeaponStatusRate <= _rng.Rand16() % 100)
+            return ev;
+
+        var landed = StatusApplication.Apply(target, actor.WeaponStatus, _statusTable);
+        if ((landed & BattleStatus.Death) != 0)
+            target.CurrentHP = 0;
+        return ev with { StatusesAdded = ev.StatusesAdded | landed };
     }
     
     /// <summary>Mirror: SBattleCalculator.CalcResult's tail - every resolved
@@ -395,10 +412,10 @@ public sealed partial class BattleEngine
         // AbilityScript.ChangeRow,
         // AbilityScript.FleeIteration,
         [AbilityScript.Flee] = (e, actor, target, ability, _) => e.ExecuteFlee(actor, target, ability),
-        // AbilityScript.Steal,
+        [AbilityScript.Steal] = (e, actor, target, _, _) => e.ExecutePlayerSteal(actor, target),
         [AbilityScript.Scan] = (e, actor, target, _, _) => e.ExecuteScan(actor, target),
         [AbilityScript.Detect] = (e, actor, target, _, _) => e.ExecuteDetect(actor, target),
-        [AbilityScript.Charge] = (e, actor, target, ability, _) => e.ExecuteCharge(actor, target, ability),
+        [AbilityScript.Charge] = (e, actor, target, _, _) => e.ExecuteCharge(actor, target),
         [AbilityScript.ItemSoft] = (e, actor, target, ability, _) => e.ExecuteItemSoft(actor, target, ability),
         // AbilityScript.MagicSwordAttack,
         // AbilityScript.Eat,
