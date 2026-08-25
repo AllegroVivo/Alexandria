@@ -6,8 +6,15 @@ namespace Alexandria.Battle;
 /// <summary>A living combatant. Mutable on purpose: battle is state that changes.</summary>
 public sealed class BattleUnit
 {
+    // ---- Identifiers ----------------------------------------------------------------------
     public required String Name { get; init; }
     public required Int32 Level { get; init; }
+    public EnemyCategory Category { get; set; }
+    public CharacterCategory PlayerCategory { get; set; }
+    public IEnemyBrain? Brain { get; set; }
+    public List<BattleAbility> Abilities { get; } = [];
+    
+    // ---- Vitals & Stats ----------------------------------------------------------------------
     public required Int32 MaxHP { get; set; }
     public required Int32 MaxMP { get; set; }
     public Int32 CurrentHP { get; set; }
@@ -20,53 +27,42 @@ public sealed class BattleUnit
     public required Int32 PhysicalEvade { get; set; }
     public required Int32 MagicalDefense { get; set; }
     public required Int32 MagicalEvade { get; set; }
-    public Int32 ATBGauge { get; set; }
-    public BattleStatus Statuses { get; set; }
     
-    /// <summary>Basic attack power: weapon power for players, attack data for enemies. Placeholder default.</summary>
+    /// <summary>Basic attack power: weapon power for players,
+    /// attack data for enemies. Placeholder default.</summary>
     public Int32 AttackPower { get; set; } = 10;
     
-    public Dictionary<BattleStatus, Int32> OprCounters { get; } = [];
-    public Dictionary<BattleStatus, Int32> ContiCounters { get; } = [];
-    
-    public IEnemyBrain? Brain { get; set; }
-    
-    public List<BattleAbility> Abilities { get; } = [];
-
+    // ---- Still in Play ----------------------------------------------------------------------
     public Boolean IsAlive => CurrentHP > 0;
     
     /// <summary>Taken out of the battle without being killed (mirror: BattleUnit.Remove).
     /// A removed unit leaves alive, but earns nothing from the fight.</summary>
     public Boolean IsRemoved { get; set; }
-
+    
     public Boolean IsFighting => IsAlive && !IsRemoved;
     
     /// <summary>ENEMY.FLG_DIE_ATK (bit 0 of SB2 Flags): this enemy runs a death
     /// script (tag 9) when killed — the boss "death scene" flag.</summary>
     public Boolean DiesFighting { get; set; }
 
+    // ---- Clock ----------------------------------------------------------------------
+    public Int32 ATBGauge { get; set; }
+    
     /// <summary>Fast units have SHORTER gauges (btl_para.GetMaxATB, /4).</summary>
     public Int32 ATBMax => (60 - Speed) * 40;
-
+    
     public Boolean ATBReady => ATBGauge >= ATBMax;
     
-    public Element GuardElements { get; set; }
-    public Element AbsorbElements { get; set; }
-    public Element HalfElements { get; set; }
-    public Element WeakElements { get; set; }
-    public Element BonusElements { get; set; }   // Elem-Atk boost gear (p_up_attr)
-    public Element WeaponElement { get; set; }   // damage element of the equipped weapon
+    // ---- Statuses ----------------------------------------------------------------------
+    public BattleStatus Statuses { get; set; }
     
     public BattleStatus PermanentStatuses { get; set; }
     public BattleStatus ImmuneStatuses { get; set; }
     
-    public Int32 StandAnimation { get; set; }
-    public Int32 Row { get; set; }
-    public EnemyCategory Category { get; set; }
-    public CharacterCategory PlayerCategory { get; set; }
-    public Int32 ModelType { get; set; }
-    public Int32 ModelID { get; set; }
-
+    public Dictionary<BattleStatus, Int32> OprCounters { get; } = [];
+    public Dictionary<BattleStatus, Int32> ContiCounters { get; } = [];
+    
+    // ---- Trance ----------------------------------------------------------------------
     /// <summary>bi.t_gauge - whether this unit has a Trance gauge at all. Enemies get one
     /// only when they are not immune to Trance (btl_init.cs:64); players have one unless
     /// they are a temporary character or the story flag is off.</summary>
@@ -76,23 +72,43 @@ public sealed class BattleUnit
     
     /// <summary>btl.trance, 0–TranceMax.</summary>
     public Int32 TranceGauge { get; set; }
-
-    /// <summary>The four steal slots, commonest FIRST (mirror: 0058_StealScript tries
-    /// 3, 2, 1, 0). Empty slots stay as NoItem rather than being filtered out.</summary>
-    public ItemID[] StealItems { get; set; } = [];
+  
+    // ---- Elements ----------------------------------------------------------------------
+    public Element GuardElements { get; set; }
+    public Element AbsorbElements { get; set; }
+    public Element HalfElements { get; set; }
+    public Element WeakElements { get; set; }
+    public Element BonusElements { get; set; }   // Elem-Atk boost gear (p_up_attr)
+    public Element WeaponElement { get; set; }   // damage element of the equipped weapon
+    
+    // ---- Equipment ----------------------------------------------------------------------
     public ItemID Weapon { get; set; } = ItemID.NoItem;
     public BattleStatus WeaponStatus { get; set; }
+    
     /// <summary>The weapon's own chance to inflict WeaponStatus, 0–100 (Weapons.csv "Rate").</summary>
     public Int32 WeaponStatusRate { get; set; }
-    public WeaponCategory WeaponCategory { get; set; }
     
-    public Int32 BonusGil { get; set; }
+    public WeaponCategory WeaponCategory { get; set; }
+    public SupportAbility Supports { get; set; }
+    
+    // ---- Location ----------------------------------------------------------------------
+    public Int32 Row { get; set; }
     
     /// <summary>The row this character belongs in.</summary>
     public Int32 DefaultRow { get; set; }
     public Boolean TurnedAway { get; set; }
-
-    public SupportAbility Supports { get; set; }
+    
+    // ---- Items ----------------------------------------------------------------------
+    /// <summary>The four steal slots, commonest FIRST (mirror: 0058_StealScript tries
+    /// 3, 2, 1, 0). Empty slots stay as NoItem rather than being filtered out.</summary>
+    public ItemID[] StealItems { get; set; } = [];
+    
+    public Int32 BonusGil { get; set; }
+    
+    // ---- Presentation ----------------------------------------------------------------------
+    public Int32 ModelType { get; set; }
+    public Int32 StandAnimation { get; set; }
+    public Int32 ModelID { get; set; }
     
     public static BattleUnit FromEnemy(String name, BattleSceneMonsterParam m) => new()
     {
