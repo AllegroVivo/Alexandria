@@ -18,7 +18,7 @@ public sealed class KillCounts
     public void Record(EnemyCategory category)
     {
         for (var bit = 0; bit < _tallies.Length; bit++)
-            if (((Byte)category * (1 << bit)) != 0 && _tallies[bit] < Cap)
+            if (((Byte)category & (1 << bit)) != 0 && _tallies[bit] < Cap)
                 _tallies[bit]++;
     }
 

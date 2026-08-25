@@ -33,6 +33,8 @@ public static class FF9Data
 
     public static String AlbumPath => Path.Combine(SaveDir, "album.json");
 
+    public static String WorldPath => Path.Combine(SaveDir, "world.json");
+    
     public static String Scene(String sceneName) => Path.Combine(Scenes, sceneName);
 
     /// <summary>A scene's script blob, which repeats the directory name: EVT_X\EVT_X.eb.</summary>

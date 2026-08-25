@@ -80,14 +80,28 @@ public static class BattleCommand
         foreach (var member in party)
             member.TranceGauge = 200;
         var host = new EngineHost(party, enemies, rng) { Pattern = pattern };
-        var world = new WorldState
+        Directory.CreateDirectory(FF9Data.SaveDir);
+        var newGame = !File.Exists(FF9Data.WorldPath);
+        var world = WorldState.Load(FF9Data.WorldPath);
+        if (newGame)
         {
-            Tonberries = 12,
-            Frogs = 45,
-            Thefts = 180,
-            Gil = 250_000,
-            Kills = { [EnemyCategory.Dragon] = 40 }
-        };
+            world.Tonberries = 12;
+            world.Frogs = 45;
+            world.Thefts = 180;
+            world.Gil = 250_000;
+            world.Kills[EnemyCategory.Dragon] = 40;
+
+            foreach (var item in db.InitialItems)
+                world.Items.Add(item.ID, item.Count);
+
+            foreach (var id in new[]
+                     {
+                         ItemID.Opal, ItemID.Topaz, ItemID.Peridot, ItemID.Aquamarine,
+                         ItemID.Garnet, ItemID.LapisLazuli, ItemID.Sapphire, ItemID.Amethyst, 
+                         ItemID.Ore
+                     })
+                world.Items.Add(id, 20);
+        }
         var state = world.Scripts;
         EbVM? director;
         using (var eb = new BinaryReader(File.OpenRead(
@@ -128,16 +142,6 @@ public static class BattleCommand
                 s => (BattleStatus)(1u << s.Bit),
                 s => new StatusTiming(s.OprCount, s.ContiCount,
                     (BattleStatus)s.ClearOnApply, (BattleStatus)s.ImmunityProvided));
-
-        foreach (var item in db.InitialItems)
-            world.Items.Add(item.ID, item.Count);
-
-        foreach (var id in new[]
-                 {
-                     ItemID.Opal, ItemID.Topaz, ItemID.Peridot, ItemID.Aquamarine,
-                     ItemID.Garnet, ItemID.LapisLazuli, ItemID.Sapphire, ItemID.Amethyst, ItemID.Ore
-                 })
-            world.Items.Add(id, 20);
 
         var itemEffects = db.Items.Values
             .Where(i => db.ItemEffects.ContainsKey(i.EffectID))
@@ -215,6 +219,8 @@ public static class BattleCommand
             .ToList();
         if (tallied.Count > 0)
             Console.WriteLine($"Kill count — {String.Join(", ", tallied)}");
+
+        world.Save(FF9Data.WorldPath);
     }
 
     private static BattleUnit BuildCharacter(RulesDB db, String name, Int32 level, Byte threat = 0)
