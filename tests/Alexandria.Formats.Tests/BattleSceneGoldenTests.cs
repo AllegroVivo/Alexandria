@@ -5,10 +5,17 @@ namespace Alexandria.Formats.Tests;
 
 public class BattleSceneGoldenTests
 {
-    [Fact]
-    public void AC_E028F_matches_memoria_export()
+    public static IEnumerable<Object[]> AllScenes()
+        => Directory.EnumerateDirectories(FF9Data.Scenes, "EVT_BATTLE_*")
+            .Select(dir => new Object[] { Path.GetFileName(dir) });
+
+    /// <summary>Our reader against Memoria's own export, for every scene in the game.
+    /// All 562 carry both dbfile0000.raw16 and Enemies.json, so nothing is skipped.</summary>
+    [Theory]
+    [MemberData(nameof(AllScenes))]
+    public void Scene_matches_memoria_export(String sceneName)
     {
-        var dir = FF9Data.Scene("EVT_BATTLE_AC_E028F");
+        var dir = FF9Data.Scene(sceneName);
 
         using var reader = new BinaryReader(File.OpenRead(Path.Combine(dir, "dbfile0000.raw16")));
         var scene = BattleScene.Read(reader);
@@ -41,21 +48,6 @@ public class BattleSceneGoldenTests
         }
     }
 
-    public static IEnumerable<Object[]> AllScenes()
-        => Directory.EnumerateDirectories(FF9Data.Scenes, "EVT_BATTLE_*")
-            .Select(dir => new Object[] { Path.GetFileName(dir) });
-
-    [Theory]
-    [MemberData(nameof(AllScenes))]
-    public void Scene_matches_memoria_export(String sceneName)
-    {
-        var dir = FF9Data.Scene(sceneName);
-        
-        var enemiesPath = Path.Combine(dir, "Enemies.json");
-        if (!File.Exists(enemiesPath))
-            return;
-    }
-    
     [Fact]
     public void Type_C_Strike_has_its_real_numbers()
     {
