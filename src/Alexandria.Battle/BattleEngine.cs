@@ -88,6 +88,7 @@ public sealed partial class BattleEngine
     public BattleUnit? TickUntilReady()
     {
         Reap();
+        RefreshLowHP();
         while (!IsOver)
         {
             var ready = AllUnits.FirstOrDefault(u => u is { IsFighting: true, ATBReady: true }
@@ -97,6 +98,7 @@ public sealed partial class BattleEngine
 
             TickScripts();
             Reap();
+            RefreshLowHP();
             if (_host is not null && _host.Phase != EngineHost.PhaseNormal)
             {
                 if (++_openingFrames <= OpeningBudget)
@@ -119,6 +121,16 @@ public sealed partial class BattleEngine
         foreach (var enemy in Enemies)
             if (!enemy.IsAlive && _reaped.Add(enemy))
                 _world.Kills.Record(enemy.Category);
+    }
+
+    private void RefreshLowHP()
+    {
+        foreach (var unit in Players)
+            if (unit.CurrentHP * 6 <= unit.MaxHP)
+                StatusApplication.Apply(unit, BattleStatus.LowHP, _statusTable);
+            else
+                StatusApplication.Remove(unit, BattleStatus.LowHP);
+                
     }
 
     public Int32 Purse => _reaped.Sum(e => e.BonusGil) + (_host?.GilEarned ?? 0);

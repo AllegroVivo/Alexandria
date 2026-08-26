@@ -6,11 +6,14 @@ namespace Alexandria.Battle;
 /// formation (vanilla btl_id layout); a multi-bit mask resolves to its lowest
 /// line, as RequestAction and FindBattleUnit do. Stat ids follow
 /// btl_scrp.GetCharacterData.</summary>
-public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<BattleUnit> enemies, Random rng) : IEbHost
+public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<BattleUnit> enemies, Random rng,
+    IReadOnlyDictionary<BattleStatus, StatusTiming>? statusTable = null) : IEbHost
 {
     private Int32 _reactCommand;
     private Int32 _reactAbility;
     private readonly UInt16[] _sysList = new UInt16[8];
+    
+    private readonly IReadOnlyDictionary<BattleStatus, StatusTiming> _statusTable = statusTable ?? StatusTicker.DefaultTable;
 
     /// <summary>Mirror: FF9StateBattleSystem.btl_phase (:10-18). A battle opens in
     /// PHASE_EVENT — the scripts' window — and only reaches PHASE_NORMAL when a
@@ -176,8 +179,8 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
             case CharacterStat.StatusImmuneA: unit.ImmuneStatuses = (BattleStatus)((UInt32)unit.ImmuneStatuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
             case CharacterStat.StatusAutoB: SetPermanent(unit, (UInt32)unit.PermanentStatuses & 0xFFFFFF | (UInt32)value << 24); break;
             case CharacterStat.StatusAutoA: SetPermanent(unit, (UInt32)unit.PermanentStatuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
-            case CharacterStat.StatusCurrentB: unit.Statuses = (BattleStatus)((UInt32)unit.Statuses & 0xFFFFFF | (UInt32)value << 24); break;
-            case CharacterStat.StatusCurrentA: unit.Statuses = (BattleStatus)((UInt32)unit.Statuses & 0xFF000000 | (UInt32)value & 0xFFFFFF); break;
+            case CharacterStat.StatusCurrentB: WriteStatuses(unit, 0xFF000000, ((UInt32)value & 0xFF) << 24); break;
+            case CharacterStat.StatusCurrentA: WriteStatuses(unit, 0x00FFFFFF, (UInt32)value & 0xFFFFFF); break;
             case CharacterStat.ElementImmune: unit.GuardElements = (Element)value; break;
             case CharacterStat.ElementAbsorb: unit.AbsorbElements = (Element)value; break;
             case CharacterStat.ElementHalf: unit.HalfElements = (Element)value; break;
@@ -204,12 +207,19 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
     /// <summary>Mirror-lite of btl_stat.MakeStatusesPermanent: the write diffs the
     /// mask — what fell off is removed (from current too), what came on is inflicted.
     /// The full AlterStatus immunity/opposite machinery is a future fidelity bite.</summary>
-    private static void SetPermanent(BattleUnit unit, UInt32 mask)
+    private void SetPermanent(BattleUnit unit, UInt32 mask)
     {
         var target = (BattleStatus)mask;
-        var removed = unit.PermanentStatuses & ~target;
-        unit.PermanentStatuses = target;
-        unit.Statuses = (unit.Statuses & ~removed) | target;
+        StatusApplication.Remove(unit, unit.PermanentStatuses & ~target);
+        unit.PermanentStatuses = StatusApplication.Apply(unit, target, _statusTable);
+    }
+    
+    /// <summary>A script writing a status window (mirror: btl_scrp.SetCharacterData cases 46/47,
+    /// which call RemoveStatuses then AlterStatuses rather than storing the word).</summary>
+    private void WriteStatuses(BattleUnit unit, UInt32 window, UInt32 wanted)
+    {
+        StatusApplication.Remove(unit, (BattleStatus)((UInt32)unit.Statuses & window & ~wanted));
+        StatusApplication.Apply(unit, (BattleStatus)wanted, _statusTable);
     }
 
     public Int32 RandomBit(Int32 mask) // mirror: OperatorSelect

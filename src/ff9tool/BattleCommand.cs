@@ -438,11 +438,21 @@ public static class BattleCommand
         return engine.ExecuteBasicAttack(actor, PromptEnemy(engine, $"{actor.Name} attacks which target? "));
     }
 
+    /// <summary>Reads a choice, or takes the first option at end-of-input.</summary>
     private static T Prompt<T>(List<T> options, Func<T, String> label, String question)
     {
+        if (options.Count == 0)
+            throw new InvalidOperationException($"Nothing to choose from: {question}");
+        
         while (true)
         {
             Console.Write(question);
+            var line = Console.ReadLine();
+            if (line is null)
+            {
+                Console.WriteLine($"[end of input — taking {label(options[0])}]");
+                return options[0];
+            }
             if (Int32.TryParse(Console.ReadLine(), out var pick) && pick >= 1 && pick <= options.Count)
                 return options[pick - 1];
         }
