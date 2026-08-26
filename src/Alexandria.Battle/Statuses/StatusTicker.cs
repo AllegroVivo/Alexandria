@@ -63,12 +63,12 @@ public static class StatusTicker
         {
             counter = reload;
             var amount = Math.Max(1, unit.MaxHP >> 4);
-            if (status == BattleStatus.Regen)
+            var healing = status == BattleStatus.Regen && !unit.Has(BattleStatus.Zombie);
+            if (healing)
                 unit.CurrentHP = Math.Min(unit.MaxHP, unit.CurrentHP + amount);
-            else // Poison; Venom's MP drain is a TODO
+            else
                 unit.CurrentHP = unit.CurrentHP > amount ? unit.CurrentHP - amount : 0;
-            events.Add(new StatusTickEvent(unit, status,
-                status == BattleStatus.Regen ? amount : -amount, Expired: false));
+            events.Add(new StatusTickEvent(unit, status, healing ? amount : -amount, Expired: false));
         }
         unit.OprCounters[status] = counter;
     }

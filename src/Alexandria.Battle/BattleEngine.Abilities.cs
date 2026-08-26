@@ -68,6 +68,23 @@ public sealed partial class BattleEngine
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, damage));
     }
 
+    /// <summary>Restoration, which the undead take as harm (mirror: CalcHpMagicRecovery, which
+    /// simply does NOT set the HpRecovery flag when the target is a Zombie - the AMOUNT is
+    /// unchanged, only its direction).</summary>
+    private BattleEvent Restore(BattleUnit caster, BattleUnit target, Int32 amount)
+    {
+        if (!target.Has(BattleStatus.Zombie))
+        {
+            var healed = Math.Min(amount, target.MaxHP - target.CurrentHP);
+            target.CurrentHP += healed;
+            return Finish(caster, target, new AttackResult(AttackOutcome.Healed, healed));
+        }
+
+        var harmed = Math.Min(amount, target.CurrentHP);
+        target.CurrentHP -= harmed;
+        return Finish(caster, target, new AttackResult(AttackOutcome.Hit, harmed));
+    }
+
     /// <summary>Statuses that land 100% of the time.</summary>
     private BattleEvent LandStatuses(BattleUnit caster, BattleUnit target, BattleStatus statuses)
         => Finish(caster, target, new AttackResult(
@@ -135,9 +152,7 @@ public sealed partial class BattleEngine
         var attack = caster.MaxHP + _rng.Rand16() % (1 + ((caster.Level + caster.Magic) >> 3));
         if (caster.Has(BattleStatus.Mini))
             attack >>= 1;
-        var healed = Math.Min(Math.Min(ability.Power * attack, MagicAttack.DamageCap), target.MaxHP - target.CurrentHP);
-        target.CurrentHP += healed;
-        return Finish(caster, target, new AttackResult(AttackOutcome.Healed, healed));
+        return Restore(caster, target, Math.Min(ability.Power * attack, MagicAttack.DamageCap));
     }
 
     /// <summary>Status magic (mirror: 0011_MagicApplyNegativeStatusScript): one accuracy
@@ -167,7 +182,21 @@ public sealed partial class BattleEngine
     /// (Spirit + power)% of maximum HP.</summary>
     public BattleEvent ExecuteRevive(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
-        if (target.IsAlive || target.Has(BattleStatus.Petrify))
+        if (target.Has(BattleStatus.Petrify))
+            return Finish(caster, target, new AttackResult(AttackOutcome.Miss, 0));
+
+        if (target.Has(BattleStatus.Zombie))
+        {
+            var roll = MagicRoll(caster, target, ability.Rate);
+            if (roll != AttackOutcome.Hit)
+                return Finish(caster, target, new AttackResult(roll, 0));
+
+            target.CurrentHP = 0;
+            var killed = StatusApplication.Apply(target, BattleStatus.Death, _statusTable);
+            return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), killed);
+        }
+
+        if (target.IsAlive)
             return Finish(caster, target, new AttackResult(AttackOutcome.Miss, 0));
 
         var restored = Math.Min(target.MaxHP * (target.Spirit + ability.Power) / 100, target.MaxHP);
@@ -181,6 +210,15 @@ public sealed partial class BattleEngine
     {
         if (target.Has(BattleStatus.EasyKill))
             return Finish(caster, target, new AttackResult(AttackOutcome.Guarded, 0));
+
+        if (target.Has(BattleStatus.Zombie))
+        {
+            if (!target.IsAlive)
+                return Finish(caster, target, new AttackResult(AttackOutcome.Miss, 0));
+            var healed = target.MaxHP - target.CurrentHP;
+            target.CurrentHP = target.MaxHP;
+            return Finish(caster, target, new AttackResult(AttackOutcome.Healed, healed));
+        }
 
         var outcome = MagicRoll(caster, target, ability.Rate, shellApplies: false);
         BattleStatus landed = 0;
@@ -210,16 +248,26 @@ public sealed partial class BattleEngine
         if (target.Has(BattleStatus.Shell))
             attack >>= 1;
 
-        var drained = Math.Min(Math.Max(0, ability.Power - target.MagicalDefense) * attack >> 2, target.CurrentMP);
-        target.CurrentMP -= drained;
-        caster.CurrentMP = Math.Min(caster.MaxHP, caster.CurrentMP + drained);
+        var drained = Math.Max(0, ability.Power - target.MagicalDefense) * attack >> 2;
+        if (target.Has(BattleStatus.Zombie))
+        {
+            drained = Math.Min(drained, caster.CurrentMP);
+            caster.CurrentMP -= drained;
+            target.CurrentMP = Math.Min(target.MaxMP, caster.CurrentMP + drained);
+        }
+        else
+        {
+            drained = Math.Min(drained, target.CurrentMP);
+            target.CurrentMP -= drained;
+            caster.CurrentMP = Math.Min(caster.MaxMP, caster.CurrentMP + drained);
+        }
 
         return Finish(caster, target, new AttackResult(AttackOutcome.MPDamage, drained));
     }
 
     /// <summary>Drain HP (mirror: 0016_DrainHpScript): ordinary magic damage, then the
-    /// caster recovers exactly what the target lost. Divergence: that flow is inverted
-    /// against a Zombie target.</summary>
+    /// caster recovers exactly what the target lost. NOT inverted against a Zombie —
+    /// 0016 has no Zombie branch at all, unlike 0015_DrainMpScript.</summary>
     public BattleEvent ExecuteDrainHP(BattleUnit caster, BattleUnit target, BattleAbility ability, Boolean divided = false)
     {
         var ev = ExecuteSpell(caster, target, ability, divided);
@@ -362,8 +410,7 @@ public sealed partial class BattleEngine
     {
         var amount = ability.Power == 0 ? caster.MaxHP / 2 : caster.MaxHP * ability.Power / 100;
         var healed = Math.Min(amount, target.MaxHP - target.CurrentHP);
-        target.CurrentHP += healed;
-        return Finish(caster, target, new AttackResult(AttackOutcome.Healed, healed));
+        return Restore(caster, target, healed);
     }
 
     /// <summary>Magic Hammer (mirror: 0031): drains a random amount of whatever MP the
@@ -723,6 +770,14 @@ public sealed partial class BattleEngine
     /// <summary>Elixir (mirror: 0071): fully fills target's HP and MP.</summary>
     public BattleEvent ExecuteItemElixir(BattleUnit caster, BattleUnit target)
     {
+        if (target.Has(BattleStatus.Zombie))
+        {
+            target.CurrentHP = 0;
+            target.CurrentMP = 0;
+            var killed = StatusApplication.Apply(target, BattleStatus.Death, _statusTable);
+            return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), killed);
+        }
+        
         var healed = target.MaxHP - target.CurrentHP;
         target.CurrentHP = target.MaxHP;
         target.CurrentMP = target.MaxMP;
@@ -732,6 +787,15 @@ public sealed partial class BattleEngine
     /// <summary>Phoenix Down / Pinion (mirror: 0072): a fallen ally returns on 1–10 HP.</summary>
     public BattleEvent ExecuteItemPhoenix(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
+        if (target.Has(BattleStatus.Zombie))
+        {
+            target.CurrentHP = _rng.Rand8() % 10;
+            var killed = target.CurrentHP == 0
+                ? StatusApplication.Apply(target, BattleStatus.Death, _statusTable)
+                : 0;
+            return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0), killed);
+        }
+        
         if (target.IsAlive)
             return Missed(caster, target);
         target.CurrentHP = 1 + _rng.Rand8() % 10;
