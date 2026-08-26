@@ -33,6 +33,7 @@ public sealed record AnimationSequenceScript(IReadOnlyList<AnimationSequenceInst
     public static AnimationSequenceScript Read(String path)
     {
         var instructions = new List<AnimationSequenceInstruction>();
+        var depth = 0;
         foreach (var raw in File.ReadLines(path))
         {
             var line = raw.Trim();
@@ -41,6 +42,9 @@ public sealed record AnimationSequenceScript(IReadOnlyList<AnimationSequenceInst
 
             var colon = line.IndexOf(':');
             var opcode = colon < 0 ? line : line[..colon];
+            if (opcode == "EndThread")
+                depth--;
+            
             var args = new Dictionary<String, String>();
             if (colon >= 0)
             {
@@ -51,10 +55,16 @@ public sealed record AnimationSequenceScript(IReadOnlyList<AnimationSequenceInst
                         args[pair[..eq].Trim()] = pair[(eq + 1)..].Trim();
                 }
             }
-            instructions.Add(new AnimationSequenceInstruction(opcode, args));
+            instructions.Add(new AnimationSequenceInstruction(opcode, args, depth > 0));
+
+            if (opcode == "StartThread")
+                depth++;
         }
         return new AnimationSequenceScript(instructions);
     }
 }
 
-public sealed record AnimationSequenceInstruction(String Opcode, IReadOnlyDictionary<String, String> Args);
+public sealed record AnimationSequenceInstruction(
+    String Opcode,
+    IReadOnlyDictionary<String, String> Args,
+    Boolean InThread = false);
