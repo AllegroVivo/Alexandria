@@ -13,17 +13,22 @@ public static class EbDisassembler
 {
     private static readonly Dictionary<Int32, (String Name, Int32[] ArgWidths)> Known = new()
     {
-        [0x38] = ("Attack", [1]), // BTLCMD - target comes from SV_Target
-        [0x4A] = ("BattleSet", [1, 2]), // BTLSET
         [0x1B] = ("ContinueBattleMusic", [1]),
+        [0x1F] = ("WindowSync", [1, 1, 2]),           // window id, UI flags, text id
+        [0x26] = ("SetWalkSpeed", [1]),               // MSPEED
+        [0x2D] = ("DisableMove", []),                 // UCOFF - reads nothing, so no flag byte either
+        [0x2F] = ("SetModel", [2, 1]),                // MODEL - model id, then head height
+        [0x38] = ("Attack", [1]),                     // BTLCMD - target comes from SV_Target
+        [0x40] = ("RunAnimation", [2]),               // ANIM - grouped with DANIM 0xBD, which takes an extra leading object arg
+        [0x4A] = ("BattleSet", [1, 2]),               // BTLSET
         [0x4C] = ("AttachObject", [1, 1, 1]),
         [0x66] = ("SetTextVariable", [1, 2]),
+        [0x93] = ("SetObjectFlags", [1]),             // CFLAG
         [0xD0] = ("BattleDialog", [2]),
+        [0xE1] = ("TerminateBattle", []),             // battle ends, no rewards
         [0xE5] = ("AttackSpecial", [1]),
         [0xEB] = ("CloseAllWindows", []),
-        [0xEC] = ("FadeFilter", [1, 1, 1, 1, 1, 1]),
-        [0x1F] = ("WindowSync", [1, 1, 2]),    // window id, UI flags, text id
-        [0xE1] = ("TerminateBattle", []),      // battle ends, no rewards
+        [0xEC] = ("FadeFilter", [1, 1, 1, 1, 1, 1])
     };
 
     private static readonly Dictionary<Int32, String> BattleSetNames = new()
