@@ -35,6 +35,8 @@ public static class FF9Data
 
     public static String WorldPath => Path.Combine(SaveDir, "world.json");
     
+    public static String FieldScripts => Path.Combine(Root, @"EventBinary\Field\US");
+    
     public static String Scene(String sceneName) => Path.Combine(Scenes, sceneName);
 
     /// <summary>A scene's script blob, which repeats the directory name: EVT_X\EVT_X.eb.</summary>

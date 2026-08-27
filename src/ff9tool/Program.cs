@@ -25,6 +25,9 @@ switch (args.Length)
     case > 0 when args[0] == "tetra":
         TetraCommand.Run();
         return;
+    case > 0 when args[0] == "fields":
+        FieldCommand.Run(args[1..]);
+        return;
 }
 
 var path = args[0];
