@@ -12,6 +12,8 @@ public sealed class WorldState
     public Int32 Frogs { get; set; }
     public KillCounts Kills { get; } = new();
 
+    public HashSet<String> SummonsSeen { get; } = [];
+    
     public Inventory Items { get; } = new();
     
     public Int32 Gil
@@ -58,6 +60,9 @@ public sealed class WorldState
             if (tally.Category != EnemyCategory.None && Enum.IsDefined(tally.Category))
                 world.Kills[tally.Category] = tally.Count;
 
+        foreach (var name in saved.SummonsSeen)
+            world.SummonsSeen.Add(name);
+
         foreach (var entry in saved.Items)
             world.Items.Add(entry.Item, entry.Count);
 
@@ -80,6 +85,7 @@ public sealed class WorldState
                     .Where(c => c != EnemyCategory.None)
                     .Select(c => new KillRecord(c, Kills[c]))
             ],
+            SummonsSeen = [.. SummonsSeen.Order()],
             Items = [.. Items.Contents.Select(i => new ItemRecord(i.Key, i.Value))]
         };
         File.WriteAllText(path, JsonSerializer.Serialize(file, Format));
@@ -96,6 +102,7 @@ public sealed class WorldState
         public Byte[]? Global { get; set; }
         public List<KillRecord> Kills { get; set; } = [];
         public List<ItemRecord> Items { get; set; } = [];
+        public List<String> SummonsSeen { get; set; } = [];
     }
 }
 

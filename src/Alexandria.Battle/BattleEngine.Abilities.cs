@@ -109,6 +109,13 @@ public sealed partial class BattleEngine
         return Finish(caster, target, new AttackResult(outcome, 0));
     }
 
+    private Boolean IsShortSummon(BattleUnit caster, BattleAbility ability)
+    {
+        if (_world.SummonsSeen.Add(ability.Name))
+            return false;
+        return _rng.Rand8() < (caster.CurrentMP > ability.MP * 2 ? 230 : 170);
+    }
+
     // AbilityScript.BaseWeapon,
     // AbilityScript.SimpleWeapon,
     // AbilityScript.WillWeapon,
@@ -134,12 +141,13 @@ public sealed partial class BattleEngine
 
     /// <summary>Cast + MP spend + damage + gauge reset: one resolved magic turn.</summary>
     public BattleEvent ExecuteSpell(BattleUnit caster, BattleUnit target, BattleAbility ability,
-        Boolean divided = false, Int32? attackOverride = null, Boolean ignoreDefense = false)
+        Boolean divided = false, Int32? attackOverride = null, Boolean ignoreDefense = false,
+        Boolean shortSummon = false)
     {
         var result = MagicAttack.Execute(caster, target, ability.Power,
             _rng, multiTarget: divided, element: ability.Elements,
             attackOverride: attackOverride, ignoreDefense: ignoreDefense,
-            damageModifiers: TranceBonus(caster));
+            damageModifiers: TranceBonus(caster), shortSummon: shortSummon);
         var added = RollRiders(target, ability, result);
         PhysicalAttack.Apply(target, result);
         return Finish(caster, target, result, added);
@@ -150,8 +158,9 @@ public sealed partial class BattleEngine
     public BattleEvent ExecuteHeal(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
         var attack = caster.MaxHP + _rng.Rand16() % (1 + ((caster.Level + caster.Magic) >> 3));
-        if (caster.Has(BattleStatus.Mini))
-            attack >>= 1;
+        var modifiers = TranceBonus(caster) - (caster.Has(BattleStatus.Mini) ? 1 : 0);
+        for (var i = 0; i < Math.Abs(modifiers); i++)
+            attack = modifiers > 0 ? attack * 3 >> 1 : attack >> 1;
         return Restore(caster, target, Math.Min(ability.Power * attack, MagicAttack.DamageCap));
     }
 
@@ -243,10 +252,11 @@ public sealed partial class BattleEngine
             return Missed(caster, target);
 
         var attack = caster.Magic + _rng.Rand16() % (1 + ((caster.Level + caster.Magic) >> 3));
-        if (caster.Has(BattleStatus.Mini))
-            attack >>= 1;
-        if (target.Has(BattleStatus.Shell))
-            attack >>= 1;
+        var modifiers = TranceBonus(caster)
+                        - (caster.Has(BattleStatus.Mini) ? 1 : 0)
+                        - (target.Has(BattleStatus.Shell) ? 1 : 0);
+        for (var i = 0; i < Math.Abs(modifiers); i++)
+            attack = modifiers > 0 ? attack * 3 >> 1 : attack >> 1;
 
         var drained = Math.Max(0, ability.Power - target.MagicalDefense) * attack >> 2;
         if (target.Has(BattleStatus.Zombie))
@@ -550,9 +560,14 @@ public sealed partial class BattleEngine
     /// <summary>Phoenix (mirror: 0049_PhoenixScript): Revive on an ally and ordinary
     /// magic damage to an enemy.</summary>
     public BattleEvent ExecutePhoenix(BattleUnit caster, BattleUnit target, BattleAbility ability, Boolean divided)
-        => IsEnemy(target)
-            ? ExecuteSpell(caster, target, ability, divided)
+    {
+        // mirror: btl_cmd.cs:1028 runs DecideSummonType on the COMMAND, before the target is
+        // considered, so the sighting is recorded and the die drawn either way
+        var shortened = IsShortSummon(caster, ability);
+        return IsEnemy(target)
+            ? ExecuteSpell(caster, target, ability, divided, shortSummon: shortened)
             : ExecuteRevive(caster, target, ability);
+    }
 
     /// <summary>Six Dragons (mirror: 0050_SixDragonsScript): one roll out of a hundred
     /// picks among six outcomes — 10% full HP and MP, 20% full HP, 20% full MP, 15% HP to
@@ -861,13 +876,16 @@ public sealed partial class BattleEngine
             : SummonGem.TryGetValue(ability.Name, out var gem)
                 ? _world.Items[gem]
                 : 0;
-        return ExecuteSpell(caster, target, ability with { Power = ability.Power + bonus }, divided);
+        return ExecuteSpell(caster, target, ability with { Power = ability.Power + bonus }, divided,
+            shortSummon: IsShortSummon(caster, ability));
     }
 
     /// <summary>Atomos (mirror: 0086_AtomosScript): proportional damage - a share of the
     /// target's maximum HP.</summary>
     public BattleEvent ExecuteAtomos(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
+        var shortened = IsShortSummon(caster, ability);
+        
         if (target.Has(BattleStatus.EasyKill))
             return Missed(caster, target);
         if ((ability.Elements & target.GuardElements) != 0)
@@ -875,6 +893,8 @@ public sealed partial class BattleEngine
 
         var share = Math.Min(ability.Power + _world.Items[ItemID.Amethyst], 100);
         var damage = target.MaxHP * share / 100;
+        if (shortened)
+            damage = damage * 2 / 3;
         target.CurrentHP = Math.Max(0, target.CurrentHP - damage);
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, damage));
     }
