@@ -516,7 +516,7 @@ public sealed partial class BattleEngine
     public BattleEvent ExecuteMight(BattleUnit caster, BattleUnit target, BattleAbility ability)
     {
         if (ability.Power > 0)
-            target.Strength = Math.Min(00, target.Strength + target.Strength / ability.Power);
+            target.Strength = Math.Min(99, target.Strength + target.Strength / ability.Power);
         return Finish(caster, target, new AttackResult(AttackOutcome.Hit, 0));
     }
 
