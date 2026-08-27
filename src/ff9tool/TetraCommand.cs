@@ -33,7 +33,8 @@ public static class TetraCommand
             Console.WriteLine($"  You {match.Board.Score(CardSide.Player)}" +
                               $"  ·  Them {match.Board.Score(CardSide.Opponent)}");
 
-            var outcome = match.Turn == CardSide.Player ? PlayerTurn(match) : OpponentTurn(match, rng);
+            var brain = new CardOpponent();
+            var outcome = match.Turn == CardSide.Player ? PlayerTurn(match) : OpponentTurn(match, brain, rng);
             Narrate(outcome);
         }
 
@@ -114,39 +115,13 @@ public static class TetraCommand
         return options[Ask("  fight which? ", options.Count) - 1];
     }
 
-    private static PlayOutcome OpponentTurn(CardMatch match, Random rng)
+    private static PlayOutcome OpponentTurn(CardMatch match, CardOpponent brain, Random rng)
     {
-        var hand = match.Hand(CardSide.Opponent);
-        var best = (Score: Double.MinValue, Card: hand[0], X: 0, Y: 0);
-
-        foreach (var card in hand)
-            for (var y = 0; y < CardBoard.Height; y++)
-                for (var x = 0; x < CardBoard.Width; x++)
-                {
-                    if (!match.Board.IsFree(x, y))
-                        continue;
-
-                    var probe = new PlayedCard(card, CardSide.Opponent);
-                    var (flips, challenges) = match.Board.Survey(x, y, probe);
-                    var score = flips.Count + challenges.Sum(c => 2 * WinChance(card, c.Card) - 1);
-
-                    if (score > best.Score)
-                        best = (score, card, x, y);
-                }
+        var (card, x, y) = brain.Choose(match.Board, match.Hand(CardSide.Opponent),
+            match.Board.Score(CardSide.Opponent), match.Board.Score(CardSide.Player), rng);
         
-        Console.WriteLine($"  They play {best.Card.Face} {Arrows.Glyphs(best.Card.Arrows)} " +
-                          $"{best.Card.Name} at {best.X},{best.Y}");
-        return match.Play(best.X, best.Y, best.Card, o => o[0]);
-    }
-
-    /// <summary>Exact odds that the attacker's roll beats the defender's.</summary>
-    private static Double WinChance(TetraCard attacker, TetraCard defender)
-    {
-        var (a, d) = CardBattle.Stats(attacker, defender);
-        var wins = 0;
-        for (var roll = 0; roll < a; roll++)
-            wins += Math.Min(roll, d);
-        return (Double)wins / (a * d);
+        Console.WriteLine($"  They play {card.Face} {Arrows.Glyphs(card.Arrows)} {card.Name} at {x},{y}");
+        return match.Play(x, y, card, o => o[0]);
     }
 
     private static void Narrate(PlayOutcome outcome)
