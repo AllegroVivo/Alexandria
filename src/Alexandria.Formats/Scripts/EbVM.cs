@@ -378,7 +378,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null, Int
                         break;
                     }
 
-                    host.FieldOp(op, args);
+                    host.FieldOp(op, uid, args);
                     break;
                 }
             }

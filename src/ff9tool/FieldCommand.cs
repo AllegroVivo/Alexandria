@@ -112,6 +112,8 @@ public static class FieldCommand
 
         try
         {
+            if (tag != 0)
+                vm.RunFunction(0);
             vm.RunFunction((UInt16)tag);
             Console.WriteLine($"ran to completion; frogs {world.Frogs}, gil {world.Gil}");
         }

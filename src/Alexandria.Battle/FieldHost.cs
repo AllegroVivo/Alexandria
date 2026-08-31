@@ -4,6 +4,8 @@ namespace Alexandria.Battle;
 
 public sealed class FieldHost(WorldState world, FieldContext context, Random rng) : IEbHost
 {
+    private readonly Dictionary<Int32, FieldObject> _objects = []; 
+        
     public Int32 Random8() => rng.Rand8();
 
     public Int32 Sysvar(Int32 id) => id switch
@@ -32,6 +34,9 @@ public sealed class FieldHost(WorldState world, FieldContext context, Random rng
     public void BattleDialog(Int32 textId) { }
     public void SetTextVariable(Int32 scriptId, Int32 value) { }
 
+    private FieldObject Object(Int32 uid)
+        => _objects.TryGetValue(uid, out var o) ? o : _objects[uid] = new FieldObject();
+
     /// <summary>A property of another object (mirror: EBin.getvobj). Uids 250-254 are indirect:
     /// 250 is whoever the player is driving, 251-254 the party slots. 255 (self) is resolved by
     /// the VM before it gets here.</summary>
@@ -43,32 +48,44 @@ public sealed class FieldHost(WorldState world, FieldContext context, Random rng
             >= 251 and <= 254 => context.PartyUID[uid - 251],
             _ => uid
         };
+        var obj = Object(target);
 
         return (Int32)stat switch
         {
-            5 => target,
+            0 => obj.X,
+            1 => obj.Y,
+            2 => obj.Z,
+            3 => obj.Angle,
+            4 => obj.Flags,
+            5 => target,          // getvobj type 5: the object's own uid
+            6 => obj.Level,
+            7 => obj.AnimFrame,
             _ => throw new NotSupportedException($"object {target} property {stat} — teach me")
         };
     }
     
     /// <summary>Opcodes the VM sized but does not model. Nine of them write the field context
     /// (mirror: EventContext); everything else is still unlearned and says so.</summary>
-    public void FieldOp(Int32 opcode, IReadOnlyList<Int32> args)
+    public void FieldOp(Int32 opcode, Int32 uid, IReadOnlyList<Int32> args)
     {
         switch (opcode)
         {
+            case 0x2C: context.ControlUID = uid; break;         // CC - the player now drives this object
             case 0x2D: context.UserControl = 0; break;          // UCOFF  DisableMove
             case 0x2E: context.UserControl = 1; break;          // UCON   EnableMove
             case 0x2F: break;                                   // MODEL - sets the object's model and eye height
-            case 0x9E: context.UserControl = 0; break;          // MOVQ   ExitField
+            case 0x36: Object(uid).Angle = args[0]; break;      // DIRE - turn the running object
+            case 0x4B: break;                                   // RADIUS - pathing size, collision and talk radii
             case 0x57: context.EncounterRatio = args[0]; break; // ENCRATE
             case 0x67:                                          // TWIST  SetControlDirection
                 context.TwistArrow = args[0];
                 context.TwistStick = args[1];
                 break;
-            case 0x90: context.IdleTimer = -1; break;           // SLEEPINH
-            case 0xEE: context.IdleTimer = 0; break;            // SLEEPON
             case 0x6A: context.DashInhibited = 1; break;        // DASHOFF
+            case 0x90: context.IdleTimer = -1; break;           // SLEEPINH
+            case 0x9E: context.UserControl = 0; break;          // MOVQ   ExitField
+            case 0xD4: break;                                   // ATTACHOFFSET - a graphics attachment offset
+            case 0xEE: context.IdleTimer = 0; break;            // SLEEPON
             case 0xF0: context.DashInhibited = 0; break;        // DASHON
             default:
                 throw new NotSupportedException($"field opcode 0x{opcode:X2} — teach me");

@@ -235,7 +235,7 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
 
     public void Attack(Int32 attackId) => ChosenAttack = attackId;
 
-    public void FieldOp(Int32 opcode, IReadOnlyList<Int32> args) => throw new NotSupportedException();
+    public void FieldOp(Int32 opcode, Int32 uid, IReadOnlyList<Int32> args) => throw new NotSupportedException();
     public Int32 ReadObjectStat(Int32 uid, CharacterStat stat)
         => throw new NotSupportedException($"object {uid} property {stat} — teach me");
 
