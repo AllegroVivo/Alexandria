@@ -20,6 +20,7 @@ public static class FieldCommand
         Int32 parsed = 0, failed = 0, functions = 0, complete = 0;
         var blockers = new Dictionary<Int32, Int32>();
         var reasons = new Dictionary<String, Int32>();
+        var examples = new List<String>();
 
         foreach (var path in Directory.EnumerateFiles(FF9Data.FieldScripts, "*.eb").Order())
         {
@@ -27,7 +28,6 @@ public static class FieldCommand
             {
                 using var reader = new BinaryReader(File.OpenRead(path));
                 var script = EbScript.Read(reader);
-                parsed++;
                 foreach (var entry in script.Entries)
                 foreach (var fn in entry.Functions)
                 {
@@ -38,11 +38,14 @@ public static class FieldCommand
                     else
                         blockers[blocked.Value] = blockers.GetValueOrDefault(blocked.Value) + 1;
                 }
+                parsed++;
             }
             catch (Exception ex)
             {
                 failed++;
                 reasons[ex.Message] = reasons.GetValueOrDefault(ex.Message) + 1;
+                if (examples.Count < 5)
+                    examples.Add(Path.GetFileNameWithoutExtension(path));
             }
         }
         
@@ -55,6 +58,7 @@ public static class FieldCommand
             foreach (var (reason, count) in reasons.OrderByDescending(r => r.Value).Take(8))
                 Console.WriteLine($"  {count,5}  {reason}");
         }
+        Console.WriteLine($"  e.g. {String.Join(", ", examples)}");
         
         Console.WriteLine("opcode wishlist (functions blocked):");
         foreach (var (opcode, count) in blockers.OrderByDescending(b => b.Value).Take(20))
