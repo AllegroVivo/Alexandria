@@ -187,6 +187,19 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         return value;
     }
 
+    /// <summary>Every argument of an instruction, sized by the shape table.</summary>
+    private Int32[] ReadArgs(Byte[] code, Int32[] widths)
+    {
+        if (widths.Length == 0)
+            return [];
+
+        var flag = (Int32)code[_pos++];
+        var args = new Int32[widths.Length];
+        for (var i = 0; i < widths.Length; i++)
+            args[i] = Arg(code, ref flag, widths[i]);
+        return args;
+    }
+
     private void Execute()
     {
         var budget = 1_000_000;
@@ -353,18 +366,19 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
 
                 default:
                 {
-                    if (!EbOpcodeTable.Presentation.Contains(op)
-                        || !EbDisassembler.TryShape(op, out var sig))
+                    if(!EbDisassembler.TryShape(op, out var sig))
                         throw new NotSupportedException(
                             $"opcode 0x{op:X2} at @{_current.EntryPoint + _pos - 1} — teach me");
 
-                    _skipped.Add(op);
-                    if (sig.ArgWidths.Length > 0)
+                    var args = ReadArgs(code, sig.ArgWidths);
+
+                    if (EbOpcodeTable.Presentation.Contains(op))
                     {
-                        var flag = (Int32)code[_pos++];
-                        foreach (var width in sig.ArgWidths)
-                            Arg(code, ref flag, width);
+                        _skipped.Add(op);
+                        break;
                     }
+
+                    host.FieldOp(op, args);
                     break;
                 }
             }

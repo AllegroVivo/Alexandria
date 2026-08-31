@@ -105,7 +105,7 @@ public static class FieldCommand
         using var reader = new BinaryReader(File.OpenRead(ScriptPath(name)));
         var script = EbScript.Read(reader);
         var world = new WorldState();
-        var vm = new EbVM(script.Entries[entryIndex], new FieldHost(world, new Random(1)), new EbState());
+        var vm = new EbVM(script.Entries[entryIndex], new FieldHost(world, new FieldContext(), new Random(1)), new EbState());
 
         try
         {
