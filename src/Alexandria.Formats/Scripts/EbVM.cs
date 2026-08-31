@@ -37,7 +37,7 @@ public enum VarType
 /// per-access widths; Int24 is the workhorse. Unknown opcodes throw with
 /// their address.
 /// </summary>
-public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
+public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null, Int32 uid = 0)
 {
     // ---- Thread state (mirror: Obj.ip / Obj.level / Obj.wait + the Call/Return frame stack) ----
     private const Int32 IdleLevel = 8;
@@ -666,6 +666,14 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
             }
             
             case ExprOp.Select: PushValue(host.RandomBit(Evaluate(Pop()))); break;
+
+            case ExprOp.ObjectStat:
+            {
+                var uid = code[pos++];
+                Push(Cell.ObjectStat(uid, code[pos++]));
+                break;
+            }
+            
             case ExprOp.SysList: Push(Cell.SysSlot(code[pos++])); break;
             case ExprOp.Sysvar: PushValue(host.Sysvar(code[pos++])); break; // evaluated at decode time
             
@@ -722,6 +730,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         VarSource.System => host.SysList(cell.Slot),
         VarSource.Member => host.ReadStat(1 << MemberLine(), cell.Stat),
         VarSource.Int26 => cell.SignedValue,
+        VarSource.Object => host.ReadObjectStat(cell.Uid == 255 ? uid : cell.Uid, cell.Stat),
         var source => throw new NotSupportedException($"variable source {source} — teach me")
     };
 
@@ -889,6 +898,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         public const Int32 NandE = 85;
         public const Int32 XorE = 86;
         public const Int32 OrE = 87;
+        public const Int32 ObjectStat = 120; // B_OBJSPECA
         public const Int32 SysList = 121;
         public const Int32 Sysvar = 122;
         public const Int32 Const = 125; // i16
@@ -908,15 +918,20 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         public Int32 Offset => Bits & 0xFFFF; // pool byte offset
         public Int32 StatID => Bits & 0xFF; // Member payload (write side uses t0 & 0xFF)
         public Int32 Slot => Bits & 0xFF; // SysList slot
+        public Int32 Uid => Bits >> 8 & 0xFF; // B_OBJSPECA payload: which object
 
         public static Cell Value(Int32 v) => new(v & 0x3FFFFFF | (Int32)VarSource.Int26 << 26);
         public static Cell MemberRef(Int32 statId) => new((Int32)VarSource.Member << 26 | statId);
         public static Cell SysSlot(Int32 slot) => new((Int32)VarSource.System << 26 | slot);
+
+        public static Cell ObjectStat(Int32 uid, Int32 stat)
+            => new(stat & 0xFF | (uid & 0xFF) << 8 | (Int32)VarSource.Object << 26);
 
         /// <summary>A var-spec byte ≥0x80: bits 0-1 source, 2-4 type, 5 = 16-bit index.</summary>
         public static Cell FromSpec(Int32 spec, Int32 index)
             => new((spec & 3) << 26 | (spec & 0x1C) << 27 | index);
 
         public CharacterStat Stat => (CharacterStat)(StatID);
+
     }
 }

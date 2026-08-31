@@ -31,6 +31,25 @@ public sealed class FieldHost(WorldState world, FieldContext context, Random rng
     public void BattleSet(Int32 verb, Int32 value) => throw new NotSupportedException("BattleSet on the field");
     public void BattleDialog(Int32 textId) { }
     public void SetTextVariable(Int32 scriptId, Int32 value) { }
+
+    /// <summary>A property of another object (mirror: EBin.getvobj). Uids 250-254 are indirect:
+    /// 250 is whoever the player is driving, 251-254 the party slots. 255 (self) is resolved by
+    /// the VM before it gets here.</summary>
+    public Int32 ReadObjectStat(Int32 uid, CharacterStat stat)
+    {
+        var target = uid switch
+        {
+            250 => context.ControlUID,
+            >= 251 and <= 254 => context.PartyUID[uid - 251],
+            _ => uid
+        };
+
+        return (Int32)stat switch
+        {
+            5 => target,
+            _ => throw new NotSupportedException($"object {target} property {stat} — teach me")
+        };
+    }
     
     /// <summary>Opcodes the VM sized but does not model. Nine of them write the field context
     /// (mirror: EventContext); everything else is still unlearned and says so.</summary>
@@ -40,6 +59,7 @@ public sealed class FieldHost(WorldState world, FieldContext context, Random rng
         {
             case 0x2D: context.UserControl = 0; break;          // UCOFF  DisableMove
             case 0x2E: context.UserControl = 1; break;          // UCON   EnableMove
+            case 0x2F: break;                                   // MODEL - sets the object's model and eye height
             case 0x9E: context.UserControl = 0; break;          // MOVQ   ExitField
             case 0x57: context.EncounterRatio = args[0]; break; // ENCRATE
             case 0x67:                                          // TWIST  SetControlDirection

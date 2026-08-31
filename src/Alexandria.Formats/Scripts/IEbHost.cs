@@ -18,4 +18,5 @@ public interface IEbHost
     void AttackSpecial(Int32 attackId); // BTLSEQ 0xE5 — target rides in SysList[0]
     void Spawn(Int32 entry, Int32 uid); // NEW/NEW2/NEW3 0x07-0x09 — declare a script object
     void FieldOp(Int32 opcode, IReadOnlyList<Int32> args);
+    Int32 ReadObjectStat(Int32 uid, CharacterStat stat);
 }

@@ -20,6 +20,8 @@ public class EbVMTests
         public void AttackSpecial(Int32 attackId) => throw new NotSupportedException();
         public void Spawn(Int32 entry, Int32 uid) => throw new NotSupportedException();
         public void FieldOp(Int32 opcode, IReadOnlyList<Int32> args) => throw new NotSupportedException();
+        public Int32 ReadObjectStat(Int32 uid, CharacterStat stat)
+            => throw new NotSupportedException($"object {uid} property {stat} — teach me");
     }
 
     private static EbVM TypeC(params Int32[] rolls)
