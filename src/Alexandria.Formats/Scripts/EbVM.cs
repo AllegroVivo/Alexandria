@@ -54,11 +54,16 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
     private readonly Byte[] _vars = new Byte[256]; // instance vars (entry.VarCount bytes used)
     private readonly EbState _state = state ?? new EbState();
     private readonly Stack<Cell> _calc = new();
+    private readonly HashSet<Int32> _skipped = [];
 
     private Int32 _memberTarget = -1;
 
     /// <summary>True while a function is live — suspended at a WAIT still counts.</summary>
     public Boolean IsRunning => _current is not null;
+
+    /// <summary>Opcodes this VM stepped over rather than modelled. Skipping is confined to
+    /// EbOpcodeTable.Presentation, but permitted is not invisible.</summary>
+    public IReadOnlySet<Int32> Skipped => _skipped;
 
     /// <summary>Read a Byte instance var - counters and flags use single-byte cells.</summary>
     public Int32 Var8(Int32 offset) => _vars[offset];
@@ -163,6 +168,22 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
         }
         var value = (Int16)(code[_pos] | code[_pos + 1] << 8);
         _pos += 2;
+        return value;
+    }
+
+    private Int32 Arg(Byte[] code, ref Int32 flag, Int32 width)
+    {
+        var expression = (flag & 1) != 0;
+        flag >>= 1;
+        if (expression)
+        {
+            RunExpression(code, ref _pos);
+            return Evaluate(Pop());
+        }
+
+        var value = 0;
+        for (var b = 0; b < width; b++)
+            value |= code[_pos++] << (8 * b);
         return value;
     }
 
@@ -331,8 +352,21 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null)
                 }
 
                 default:
-                    throw new NotSupportedException(
-                        $"opcode 0x{op:X2} at @{_current.EntryPoint + _pos - 1} — teach me");
+                {
+                    if (!EbOpcodeTable.Presentation.Contains(op)
+                        || !EbDisassembler.TryShape(op, out var sig))
+                        throw new NotSupportedException(
+                            $"opcode 0x{op:X2} at @{_current.EntryPoint + _pos - 1} — teach me");
+
+                    _skipped.Add(op);
+                    if (sig.ArgWidths.Length > 0)
+                    {
+                        var flag = (Int32)code[_pos++];
+                        foreach (var width in sig.ArgWidths)
+                            Arg(code, ref flag, width);
+                    }
+                    break;
+                }
             }
         }
     }

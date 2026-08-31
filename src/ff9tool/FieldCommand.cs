@@ -1,3 +1,4 @@
+using Alexandria.Battle;
 using Alexandria.Formats;
 using Alexandria.Formats.Scripts;
 
@@ -11,7 +12,8 @@ public static class FieldCommand
         {
             case 0: Census(); break;
             case 1: Describe(args[0]); break;
-            default: Disassemble(args[0], Int32.Parse(args[1])); break;
+            case 2: Disassemble(args[0], Int32.Parse(args[1])); break;
+            default: Execute(args[0], Int32.Parse(args[1]), Int32.Parse(args[2])); break;
         }
     }
 
@@ -96,6 +98,28 @@ public static class FieldCommand
                 Console.WriteLine($"  ... stops at opcode 0x{blocked.Value:X2}");
             Console.WriteLine();
         }
+    }
+
+    private static void Execute(String name, Int32 entryIndex, Int32 tag)
+    {
+        using var reader = new BinaryReader(File.OpenRead(ScriptPath(name)));
+        var script = EbScript.Read(reader);
+        var world = new WorldState();
+        var vm = new EbVM(script.Entries[entryIndex], new FieldHost(world, new Random(1)), new EbState());
+
+        try
+        {
+            vm.RunFunction((UInt16)tag);
+            Console.WriteLine($"ran to completion; frogs {world.Frogs}, gil {world.Gil}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"stopped: {ex.Message}");
+        }
+        
+        Console.WriteLine(
+            $"stepped over {vm.Skipped.Count} distinct presentation opcodes: " +
+            String.Join(", ", vm.Skipped.Order().Select(o => $"0x{o:X2}")));
     }
 }
 

@@ -191,8 +191,7 @@ public static class EbDisassembler
 
                     default:
                     {
-                        if (!Known.TryGetValue(op, out var sig)
-                            && !EbOpcodeTable.Generated.TryGetValue(op, out sig))
+                        if (!TryShape(op, out var sig))
                         {
                             blockedOpcode = op;
                             lines.Add($"@{at:D4}: !! unknown opcode 0x{op:X2} ({code.Length - pos} bytes undecoded)");
@@ -271,10 +270,14 @@ public static class EbDisassembler
         flag >>= 1;
         return value;
     }
+
+    /// <summary>An opcode's operand shape: the hand-written table first, then the generated one.</summary>
+    internal static Boolean TryShape(Int32 op, out (String Name, Int32[] ArgWidths) shape)
+        => Known.TryGetValue(op, out shape) || EbOpcodeTable.Generated.TryGetValue(op, out shape);
     
     /// <summary>Hand-written shapes: opcodes whose case in the reference shares a label with a
     /// D-variant, branches, loops, or reads a raw byte.</summary>
-    private static readonly Dictionary<Int32, (String Name, Int32[] ArgWidths)> Known = new()
+    internal static readonly Dictionary<Int32, (String Name, Int32[] ArgWidths)> Known = new()
     {
         [0x1C] = ("TerminateEntry", [1]),             // DELETE - an ordinary handler opcode, flag byte and all
         [0x1D] = ("CreateObject", [2, 2]),            // POS - X then Z; DPOS 0xBF adds a leading object arg
@@ -297,8 +300,11 @@ public static class EbDisassembler
         [0xC5] = ("RunSoundCode", [2, 2]),            // FLDSND0 - one shared block, 0xC5..0xC8 taking 0..3 extra args
         [0xC6] = ("RunSoundCode1", [2, 2, 3]),        // FLDSND1 - note the 3-byte arg
         [0xC7] = ("RunSoundCode2", [2, 2, 3, 1]),     // FLDSND2
+        [0xD1] = ("GlobalClear", []),                 // GLOBALCLEAR - shares an empty block with DEBUGSAVE/DEBUGLOAD
+        [0xD2] = ("DebugSave", []),                   // DEBUGSAVE - same block
         [0xD5] = ("HideAllObjects", []),              // PUSHHIDE - its loop walks live objects, not operands
         [0xD6] = ("ShowAllObjects", []),              // POPSHOW - sibling of PUSHHIDE
+        [0xDA] = ("RunSPSCodeSimple", [1, 1, 1, 2, 2]), // SPS2 - SPS's block; arg 3 is a getv1 here, a getv2 there
         [0xDD] = ("RemoveParty", [1]),                // PARTYDELETE
         [0xF1] = ("SetHP", [1, 2]),                   // SETHP - see SETMP
         [0xF2] = ("SetMP", [1, 2]),                   // SETMP - vanilla reads arg2 only when the character resolves,

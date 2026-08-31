@@ -48,4 +48,27 @@ public class EbVMTests
 
         Assert.Equal(83, vm.Var24(15));
     }
+    
+    [Fact]
+    public void A_presentation_opcode_is_stepped_over_and_recorded()
+    {
+        // SetWalkAnimation(0x0110), then return. 0x34 touches no game state, so the VM may
+        // step over it — but must say that it did.
+        var fn = new EbFunction(1, 0, [0x34, 0x00, 0x10, 0x01, 0x04]);
+        var vm = new EbVM(new EbEntry(0, 0, 4, 0, [fn]), new ScriptedHost());
+
+        vm.RunFunction(1);
+
+        Assert.Contains(0x34, vm.Skipped);
+    }
+
+    [Fact]
+    public void An_opcode_that_touches_game_state_still_refuses_to_run()
+    {
+        // AddItem: absent from Presentation, so it throws rather than quietly losing an item
+        var fn = new EbFunction(1, 0, [0x48, 0x00, 0xEC, 0x00, 0x01, 0x04]);
+        var vm = new EbVM(new EbEntry(0, 0, 4, 0, [fn]), new ScriptedHost());
+
+        Assert.Throws<NotSupportedException>(() => vm.RunFunction(1));
+    }
 }
