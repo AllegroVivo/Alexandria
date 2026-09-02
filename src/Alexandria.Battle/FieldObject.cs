@@ -12,5 +12,6 @@ public sealed class FieldObject
     public Int32 Flags { get; set; }
     public Int32 Level { get; set; }
     public Int32 AnimFrame { get; set; }
+    public Int32 Window { get; set; }
 }
 

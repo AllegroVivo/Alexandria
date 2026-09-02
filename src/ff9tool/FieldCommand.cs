@@ -12,6 +12,7 @@ public static class FieldCommand
         {
             case 0: Census(); break;
             case 1: Describe(args[0]); break;
+            case 2 when args[1] == "map": Map(args[0]); break;
             case 2: Disassemble(args[0], Int32.Parse(args[1])); break;
             default: Execute(args[0], Int32.Parse(args[1]), Int32.Parse(args[2])); break;
         }
@@ -125,6 +126,25 @@ public static class FieldCommand
         Console.WriteLine(
             $"stepped over {vm.Skipped.Count} distinct presentation opcodes: " +
             String.Join(", ", vm.Skipped.Order().Select(o => $"0x{o:X2}")));
+    }
+
+    /// <summary>Load a whole map.</summary>
+    private static void Map(String name)
+    {
+        using var reader = new BinaryReader(File.OpenRead(ScriptPath(name)));
+        var script = EbScript.Read(reader);
+        var world = new WorldState();
+        var map = new FieldMap(script, world, new FieldContext { UserControl = 1 }, new Random(1));
+
+        try
+        {
+            map.Load();
+            Console.WriteLine($"loaded {map.Objects.Count} objects from {script.EntryCount} entries");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"stopped after {map.Objects.Count} objects: {ex.Message}");
+        }
     }
 }
 

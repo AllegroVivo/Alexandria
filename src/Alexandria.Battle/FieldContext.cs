@@ -10,5 +10,8 @@ public sealed class FieldContext
     public Int32 DashInhibited { get; set; }
     public Int32 ControlUID { get; set; }
     public Int32[] PartyUID { get; } = new Int32[4];
+    public HashSet<Int32> Party { get; } = [0, 1, 2, 3];
+    public Int32 LastChoice { get; set; }
+    public Boolean MenuEnabled { get; set; } = true;
 }
 

@@ -64,6 +64,7 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null, Int
     /// <summary>Opcodes this VM stepped over rather than modelled. Skipping is confined to
     /// EbOpcodeTable.Presentation, but permitted is not invisible.</summary>
     public IReadOnlySet<Int32> Skipped => _skipped;
+    public EbEntry Entry => entry;
 
     /// <summary>Read a Byte instance var - counters and flags use single-byte cells.</summary>
     public Int32 Var8(Int32 offset) => _vars[offset];
@@ -361,6 +362,35 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null, Int
                     var entryIndex = code[_pos++];
                     var uid = code[_pos++];
                     host.Spawn(entryIndex, uid);
+                    break;
+                }
+
+                case Op.TerminateEntry: // DELETE: 255 is self. Unwind to the floor and park the thread
+                {
+                    var flag = (Int32)code[_pos++];
+                    var target = Arg1(code, ref flag);
+                    if (target != 255 && target != uid)
+                        throw new NotSupportedException($"object {uid} terminating object {target} — teach me");
+
+                    while (_frames.Count > _floor)
+                        _frames.Pop();
+                    _current = null;
+                    _level = IdleLevel;
+                    break;
+                }
+
+                case Op.SetRegion: // QUAD: a vertex count, then an X and a Z for each of them.
+                {
+                    var flag = (Int32)code[_pos++];
+                    var count = Arg1(code, ref flag);
+                    var region = new Int32[1 + count * 2];
+                    region[0] = count;
+                    for (var i = 0; i < count; i++)
+                    {
+                        region[1 + i * 2] = Arg2(code, ref flag);
+                        region[2 + i * 2] = Arg2(code, ref flag);
+                    }
+                    host.FieldOp(op, uid, region);
                     break;
                 }
 
@@ -674,6 +704,25 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null, Int
                 break;
             }
             
+            case ExprOp.DistanceA: // B_DISTANCEA: how far that object is from us, ignoring height
+                PushValue(host.Distance(uid, Evaluate(Pop())));
+                break;
+
+            case ExprOp.HaveItem: // B_HAVE_ITEM: how many we hold. A count, despite the name
+                PushValue(host.ItemCount(Evaluate(Pop())));
+                break;
+
+            case ExprOp.Angle2: // B_ANGLE2: the compass angle of a vector
+            {
+                var deltaZ = Evaluate(Pop());
+                PushValue(Angle2(Evaluate(Pop()), deltaZ));
+                break;
+            }
+            
+            case ExprOp.PartyCheck: // B_PARTYCHK: is this character in the active party of four?
+                PushValue(host.PartyCheck(Evaluate(Pop())));
+                break;
+            
             case ExprOp.SysList: Push(Cell.SysSlot(code[pos++])); break;
             case ExprOp.Sysvar: PushValue(host.Sysvar(code[pos++])); break; // evaluated at decode time
             
@@ -733,6 +782,16 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null, Int
         VarSource.Object => host.ReadObjectStat(cell.Uid == 255 ? uid : cell.Uid, cell.Stat),
         var source => throw new NotSupportedException($"variable source {source} — teach me")
     };
+
+    private static Int32 Angle2(Int32 deltaX, Int32 deltaZ)
+    {
+        if (deltaX == 0 && deltaZ == 0)
+            return 0;
+
+        var turns = Math.Atan2(-deltaX, -deltaZ) / (2 * Math.PI);
+        var units = (Int32)Math.Round(turns * 256);
+        return units == 128 ? -128 : units;
+    }
 
     private void WriteThrough(Cell cell, Int32 value)
     {
@@ -806,7 +865,9 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null, Int
         public const Int32 InitRegion = 0x08; // NEW2 — a region thread
         public const Int32 InitObject = 0x09; // NEW3 — an object thread; (battle enemies)
         public const Int32 SwitchRange = 0x0B; // min..min+count−1
+        public const Int32 TerminateEntry = 0x1C; // DELETE — end this entry outright
         public const Int32 Wait = 0x22; // WAIT — park N frames
+        public const Int32 SetRegion = 0x29; // QUAD — the region's outline
         public const Int32 BattleCommand = 0x38; // BTLCMD — the script acts
         public const Int32 BattleSet = 0x4A; // BTLSET — run a battle code
         public const Int32 SetTextVariable = 0x66; // MESVALUE — fill a text variable
@@ -898,6 +959,10 @@ public sealed class EbVM(EbEntry entry, IEbHost host, EbState? state = null, Int
         public const Int32 NandE = 85;
         public const Int32 XorE = 86;
         public const Int32 OrE = 87;
+        public const Int32 DistanceA = 97;  // B_DISTANCEA
+        public const Int32 HaveItem = 100;  // B_HAVE_ITEM
+        public const Int32 Angle2 = 102;    // B_ANGLE2
+        public const Int32 PartyCheck = 107; // B_PARTYCHK
         public const Int32 ObjectStat = 120; // B_OBJSPECA
         public const Int32 SysList = 121;
         public const Int32 Sysvar = 122;

@@ -236,6 +236,9 @@ public sealed class EngineHost(IReadOnlyList<BattleUnit> players, IReadOnlyList<
     public void Attack(Int32 attackId) => ChosenAttack = attackId;
 
     public void FieldOp(Int32 opcode, Int32 uid, IReadOnlyList<Int32> args) => throw new NotSupportedException();
+    public Int32 PartyCheck(Int32 character) => throw new NotSupportedException("party check outside the field");
+    public Int32 Distance(Int32 fromUid, Int32 toUid) => throw new NotSupportedException("no objects outside the field");
+    public Int32 ItemCount(Int32 item) => throw new NotSupportedException("no inventory outside the field");
     public Int32 ReadObjectStat(Int32 uid, CharacterStat stat)
         => throw new NotSupportedException($"object {uid} property {stat} — teach me");
 

@@ -19,4 +19,10 @@ public interface IEbHost
     void Spawn(Int32 entry, Int32 uid); // NEW/NEW2/NEW3 0x07-0x09 — declare a script object
     void FieldOp(Int32 opcode, Int32 uid, IReadOnlyList<Int32> args);
     Int32 ReadObjectStat(Int32 uid, CharacterStat stat);
+    /// <summary>Whether this character is one of the four active party members.</summary>
+    Int32 PartyCheck(Int32 character);
+    /// <summary>The distance between two objects on the ground plane.</summary>
+    Int32 Distance(Int32 fromUid, Int32 toUid);
+    /// <summary>How many of this item the party holds.</summary>
+    Int32 ItemCount(Int32 item);
 }

@@ -163,7 +163,7 @@ public static class ExprDecoder
                     break;
                 }
                 default:
-                    stack.Push($"?op{op:X2}?");
+                    stack.Push($"?op{op}?");
                     break;
             }
         }
